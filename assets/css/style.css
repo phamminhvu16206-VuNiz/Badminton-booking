@@ -1,0 +1,64 @@
+/* Định dạng màu sắc chủ đạo và phong cách Clean UI cho website */
+
+:root {
+    --primary-color: #198754; /* Màu xanh lá cây chủ đạo */
+    --primary-hover: #146c43;
+    --bg-light: #f8f9fa;      /* Màu xám nhạt */
+}
+
+body {
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--bg-light);
+    color: #333333;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+main {
+    flex: 1;
+}
+
+/* Tùy chỉnh màu xanh thương hiệu */
+.bg-custom-primary {
+    background-color: var(--primary-color) !important;
+}
+
+.text-custom-primary {
+    color: var(--primary-color) !important;
+}
+
+.btn-custom-primary {
+    background-color: var(--primary-color);
+    color: #ffffff;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.btn-custom-primary:hover {
+    background-color: var(--primary-hover);
+    color: #ffffff;
+    transform: translateY(-2px);
+}
+
+/* Card bo góc nhẹ và hiệu ứng hover vừa phải */
+.card-custom {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
+}
+
+.card-custom:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+/* Banner trang chủ */
+.hero-banner {
+    background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('../images/banner.jpg') center/cover no-repeat;
+    color: #ffffff;
+    padding: 100px 0;
+    text-align: center;
+}
