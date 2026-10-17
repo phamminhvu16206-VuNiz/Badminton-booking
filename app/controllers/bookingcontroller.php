@@ -23,148 +23,187 @@ class BookingController
         $this->userModel = new User();
     }
 
-    /**
-     * API Ajax trả về các khung giờ đã bị đặt trong ngày
-     */
     public function checkSlotsApi($courtId, $date)
     {
         header('Content-Type: application/json');
-        echo json_encode($this->bookingModel->getBookedSlots($courtId, $date));
-        exit();
+        // Tự động hủy các đơn quá 3 phút chưa thanh toán trước khi trả về danh sách slot
+        $this->bookingModel->cancelExpiredBookings();
+
+        $bookedSlots = $this->bookingModel->getBookedSlotsByDate($courtId, $date);
+        echo json_encode($bookedSlots);
+        exit;
     }
 
-    /**
-     * Xử lý Submit Form Đặt Sân, tạo mã VietQR & Gửi Mail Hóa Đơn
-     */
+    // API kiểm tra trạng thái thanh toán và tự động gửi email hóa đơn ngay khi nhận tiền
+    public function checkPaymentStatusApi($bookingId)
+    {
+        header('Content-Type: application/json');
+
+        // Kiểm tra xem đơn đã quá 3 phút chưa thanh toán chưa
+        $this->bookingModel->cancelExpiredBookings();
+
+        $booking = $this->bookingModel->getBookingById($bookingId);
+
+        if (!$booking || $booking['status'] === 'cancelled') {
+            echo json_encode(['status' => 'expired']);
+            exit;
+        }
+
+        // Kiểm tra nếu đã thanh toán (qua SePay webhook hoặc cập nhật thủ công thành confirmed/paid)
+        if ((isset($booking['status']) && $booking['status'] === 'confirmed') || (isset($booking['payment_status']) && $booking['payment_status'] === 'paid')) {
+
+            // Kiểm tra xem đã gửi email chưa (tránh gửi trùng lặp mỗi khi Ajax gọi check)
+            if (empty($booking['email_sent'])) {
+                $this->sendSuccessEmail($booking);
+                $this->bookingModel->markEmailSent($bookingId);
+            }
+
+            echo json_encode(['status' => 'confirmed']);
+        } else {
+            echo json_encode(['status' => 'pending']);
+        }
+        exit;
+    }
+
+    // Phương thức xử lý xác nhận thanh toán được gọi trực tiếp từ webhook.php
+    public function confirmPaymentSuccess($bookingId)
+    {
+        header('Content-Type: application/json');
+
+        $booking = $this->bookingModel->getBookingById($bookingId);
+
+        if ($booking) {
+            // Cập nhật trạng thái đơn đặt sân thành confirmed
+            if ($booking['status'] !== 'confirmed') {
+                $this->bookingModel->updateStatus($bookingId, 'confirmed');
+                $booking['status'] = 'confirmed';
+            }
+
+            // Tiến hành gửi email hóa đơn nếu chưa được gửi
+            if (empty($booking['email_sent'])) {
+                $this->sendSuccessEmail($booking);
+                $this->bookingModel->markEmailSent($bookingId);
+            }
+
+            echo json_encode(['success' => true, 'message' => 'Xác nhận thanh toán và gửi email thành công!']);
+            exit;
+        }
+
+        echo json_encode(['success' => false, 'message' => 'Không tìm thấy đơn đặt sân!']);
+        exit;
+    }
+
+    private function sendSuccessEmail($booking)
+    {
+        try {
+            $user = $this->userModel->getUserById($booking['user_id']);
+            $userName = $user['fullname'] ?? $user['name'] ?? $user['username'] ?? 'Khách hàng';
+
+            $court = $this->courtModel->getCourtById($booking['court_id']);
+            $courtName = $court['name'] ?? 'Sân cầu lông';
+
+            // Tính thời gian hiển thị
+            $start = strtotime($booking['start_time']);
+            $end = strtotime($booking['end_time']);
+            $timeSlot = date('H:i', $start) . ' - ' . date('H:i', $end);
+
+            // Lấy email khách (nếu có lưu hoặc lấy từ user)
+            $customerEmail = $user['email'] ?? '';
+            if (!empty($booking['customer_email'])) {
+                $customerEmail = $booking['customer_email'];
+            }
+
+            if (!empty($customerEmail)) {
+                Mailer::sendInvoice(
+                    $customerEmail,
+                    $userName,
+                    $booking['id'],
+                    $courtName,
+                    $booking['booking_date'],
+                    $timeSlot,
+                    $booking['total_amount'] ?? 0
+                );
+            }
+        } catch (\Exception $e) {
+            // Xử lý ngoại lệ gửi email nếu có
+        }
+    }
+
     public function processBooking($postData, $userId)
     {
+        // Ưu tiên lấy user_id từ Session nếu $userId truyền vào bị bằng 0
+        if (empty($userId) && isset($_SESSION['user_id'])) {
+            $userId = $_SESSION['user_id'];
+        }
+
+        // Hủy các đơn quá hạn trước khi tạo đơn mới
+        $this->bookingModel->cancelExpiredBookings();
+
         $courtId = intval($postData['court_id'] ?? 0);
         $date = $postData['booking_date'] ?? '';
-        $startHour = intval($postData['start_hour'] ?? 0);
-        $endHour = intval($postData['end_hour'] ?? 0);
+        $slots = $postData['slots'] ?? [];
         $selectedServices = $postData['services'] ?? [];
-
-        // Lấy Email từ ô nhập liệu trên Form
         $customerEmail = trim($postData['customer_email'] ?? '');
 
-        // 1. Kiểm tra tính hợp lệ của dữ liệu đầu vào
-        if (empty($date) || $startHour <= 0 || $endHour <= 0 || $endHour <= $startHour) {
-            return ['error' => 'Thông tin ngày và giờ đặt sân không hợp lệ!'];
+        if (empty($date) || empty($slots) || !is_array($slots)) {
+            return ['error' => 'Vui lòng chọn ít nhất một khung giờ đặt sân!'];
         }
 
         if (empty($customerEmail) || !filter_var($customerEmail, FILTER_VALIDATE_EMAIL)) {
             return ['error' => 'Địa chỉ email nhận hóa đơn không hợp lệ!'];
         }
 
-        $startTimeStr = sprintf('%02d:00:00', $startHour);
-        $endTimeStr = sprintf('%02d:00:00', $endHour);
+        sort($slots);
+        $startTimeStr = reset($slots) . ':00';
 
-        // 2. Kiểm tra trùng lịch đặt
-        if ($this->bookingModel->isSlotOverlapped($courtId, $date, $startTimeStr, $endTimeStr)) {
-            return ['error' => 'Khung giờ này đã có người đặt, vui lòng chọn khung giờ khác!'];
+        $lastSlot = end($slots);
+        $lastSlotParts = explode(':', $lastSlot);
+        $endTimestamp = strtotime("{$lastSlotParts[0]}:{$lastSlotParts[1]} +30 minutes");
+        $endTimeStr = date('H:i:s', $endTimestamp);
+
+        foreach ($slots as $slotLabel) {
+            $slotStart = $slotLabel . ':00';
+            $slotEndTimestamp = strtotime("{$slotLabel} +30 minutes");
+            $slotEnd = date('H:i:s', $slotEndTimestamp);
+
+            if ($this->bookingModel->isSlotOverlapped($courtId, $date, $slotStart, $slotEnd)) {
+                return ['error' => "Khung giờ {$slotLabel} đã có người đặt, vui lòng chọn lại!"];
+            }
         }
 
-        // 3. Tạo đơn đặt sân mới vào CSDL
-        $bookingId = $this->bookingModel->createBooking($userId, $courtId, $date, $startTimeStr, $endTimeStr);
+        // Tính tổng tiền
+        $court = $this->courtModel->getCourtById($courtId);
+        $pricePerHour = floatval($court['price_per_hour'] ?? $court['price'] ?? 150000);
+        $slotCount = count($slots);
+        $courtTotal = ($pricePerHour / 2) * $slotCount;
+        $totalMoney = $courtTotal;
+
+        $allServices = $this->serviceModel->getAllServices();
+        foreach ($allServices as $srv) {
+            if (in_array($srv['id'], $selectedServices)) {
+                $totalMoney += floatval($srv['price']);
+            }
+        }
+
+        // Tạo đơn hàng với trạng thái 'pending' và lưu tổng tiền + email nhận
+        $bookingId = $this->bookingModel->createBookingWithDetails($userId, $courtId, $date, $startTimeStr, $endTimeStr, $totalMoney, $customerEmail);
 
         if ($bookingId) {
-            // 4. Tính toán tổng chi phí (Sân + Dịch vụ đi kèm)
-            $court = $this->courtModel->getCourtById($courtId);
-            $duration = $endHour - $startHour;
-            $pricePerHour = $court['price_per_hour'] ?? $court['price'] ?? 150000;
-            $totalMoney = $duration * $pricePerHour;
-
-            $allServices = $this->serviceModel->getAllServices();
-            foreach ($allServices as $srv) {
-                if (in_array($srv['id'], $selectedServices)) {
-                    $totalMoney += ($srv['unit'] === 'giờ') ? ($srv['price'] * $duration) : $srv['price'];
-                }
-            }
-
-            // 5. CẤU HÌNH THÔNG TIN TÀI KHOẢN NGÂN HÀNG CỦA BẠN (TẠO MÃ VIETQR)
-            $bankId = "MB";                 // Mã ngân hàng (VD: MB, VCB, TCB, ACB, VPB, ICB...)
-            $accountNo = "0339936910";      // Số tài khoản ngân hàng của bạn
-            $accountName = "PHAM MINH VU"; // Tên chủ tài khoản (Viết hoa không dấu)
+            $bankId = "MB";
+            $accountNo = "0339936910";
+            $accountName = "PHAM MINH VU";
 
             $desc = "DATSAN " . $bookingId;
             $qrUrl = "https://img.vietqr.io/image/{$bankId}-{$accountNo}-compact2.png?amount={$totalMoney}&addInfo=" . urlencode($desc) . "&accountName=" . urlencode($accountName);
-
-            // 6. TỰ ĐỘNG GỬI EMAIL HÓA ĐƠN XÁC NHẬN CHO KHÁCH HÀNG
-            $user = $this->userModel->getUserById($userId);
-            $userName = $user['fullname'] ?? $user['name'] ?? $user['username'] ?? 'Khách hàng';
-            $timeSlot = sprintf('%02d:00 - %02d:00', $startHour, $endHour);
-
-            Mailer::sendInvoice(
-                $customerEmail,
-                $userName,
-                $bookingId,
-                $court['name'],
-                $date,
-                $timeSlot,
-                $totalMoney
-            );
 
             return [
                 'success' => true,
                 'booking_id' => $bookingId,
                 'qr_url' => $qrUrl,
-                'message' => "Đặt sân thành công! Hóa đơn điện tử đã được gửi đến email: " . htmlspecialchars($customerEmail)
+                'email' => $customerEmail
             ];
         }
 
         return ['error' => 'Lỗi hệ thống, không thể đặt sân!'];
-    }
-
-    /**
-     * API Ajax trả về trạng thái thanh toán hiện tại của đơn hàng (cho JavaScript ở giao diện)
-     */
-    public function checkPaymentStatusApi($bookingId)
-    {
-        header('Content-Type: application/json');
-        $booking = $this->bookingModel->getBookingById($bookingId);
-
-        if ($booking) {
-            echo json_encode(['status' => $booking['status']]); // Trả về 'pending', 'confirmed', ...
-        } else {
-            echo json_encode(['status' => 'not_found']);
-        }
-        exit();
-    }
-
-    /**
-     * Hàm kích hoạt khi SePay báo đã nhận tiền (Cập nhật DB -> Gửi Mail Hóa Đơn)
-     */
-    public function confirmPaymentSuccess($bookingId)
-    {
-        $booking = $this->bookingModel->getBookingById($bookingId);
-
-        // Nếu tìm thấy đơn hàng và trạng thái vẫn đang là chờ thanh toán (pending)
-        if ($booking && $booking['status'] === 'pending') {
-            // 1. Đổi trạng thái trong CSDL thành 'confirmed' (Đã thanh toán)
-            $this->bookingModel->updateStatus($bookingId, 'confirmed');
-
-            // 2. Lấy thông tin sân để tạo hóa đơn
-            $court = $this->courtModel->getCourtById($booking['court_id']);
-
-            $startHour = intval(explode(':', $booking['start_time'])[0]);
-            $endHour = intval(explode(':', $booking['end_time'])[0]);
-            $timeSlot = sprintf('%02d:00 - %02d:00', $startHour, $endHour);
-
-            // 3. Gửi Email Hóa Đơn cho khách hàng
-            $customerEmail = !empty($booking['customer_email']) ? $booking['customer_email'] : 'khachhang@gmail.com';
-
-            \App\Core\Mailer::sendInvoice(
-                $customerEmail,
-                'Khách hàng',
-                $bookingId,
-                $court['name'],
-                $booking['booking_date'],
-                $timeSlot,
-                $booking['total_amount'] ?? 0
-            );
-
-            return true;
-        }
-        return false;
     }
 }

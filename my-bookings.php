@@ -1,150 +1,109 @@
 <?php
 // File: my-bookings.php
-// Chức năng: Hiển thị lịch sử đặt sân của người dùng hiện tại và cho phép hủy đơn đặt sân (nếu còn trạng thái pending)
+// Chức năng: Hiển thị lịch sử các đơn đặt sân của người dùng đang đăng nhập
 
 require_once 'config/database.php';
 require_once 'includes/header.php';
 
-// Kiểm tra đăng nhập
-if (!isset($_SESSION['user_id'])) {
-    $_SESSION['login_required'] = 'Vui lòng đăng nhập để xem lịch sử đặt sân!';
-    header('Location: login.php');
-    exit();
-}
+$userId = $_SESSION['user_id'] ?? 0;
+$userEmail = $_SESSION['user_email'] ?? '';
 
-$user_id = $_SESSION['user_id'];
-$success = '';
-$error = '';
-
-// Xử lý yêu cầu hủy đơn đặt sân
-if (isset($_GET['action']) && $_GET['action'] === 'cancel' && isset($_GET['id'])) {
-    $booking_id = (int)$_GET['id'];
-    try {
-        // Kiểm tra xem đơn đặt sân này có thuộc về user hiện tại và đang ở trạng thái 'pending' không
-        $stmt_check = $conn->prepare("SELECT * FROM bookings WHERE id = ? AND user_id = ?");
-        $stmt_check->execute([$booking_id, $user_id]);
-        $booking = $stmt_check->fetch();
-
-        if ($booking) {
-            if ($booking['status'] === 'pending') {
-                $stmt_cancel = $conn->prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?");
-                if ($stmt_cancel->execute([$booking_id])) {
-                    $success = 'Đã hủy đơn đặt sân thành công!';
-                } else {
-                    $error = 'Không thể hủy đơn đặt sân, vui lòng thử lại.';
-                }
-            } else {
-                $error = 'Chỉ có thể hủy các đơn đặt sân đang ở trạng thái chờ duyệt (Pending)!';
-            }
-        } else {
-            $error = 'Không tìm thấy đơn đặt sân hoặc bạn không có quyền hủy.';
-        }
-    } catch (PDOException $e) {
-        $error = 'Lỗi cơ sở dữ liệu: ' . $e->getMessage();
-    }
-}
-
-// Truy vấn danh sách lịch sử đặt sân của user
+// Truy vấn lấy danh sách đơn đặt sân theo user_id HOẶC customer_email
 try {
     $stmt = $conn->prepare("
-        SELECT b.*, c.name AS court_name, c.address AS court_address, 
-               ts.start_time, ts.end_time 
-        FROM bookings b 
-        JOIN courts c ON b.court_id = c.id 
-        JOIN time_slots ts ON b.time_slot_id = ts.id 
-        WHERE b.user_id = ? 
+        SELECT b.*, c.name AS court_name, c.image AS court_image, c.address AS court_address 
+        FROM bookings b
+        LEFT JOIN courts c ON b.court_id = c.id
+        WHERE (b.user_id = ? AND ? > 0) OR (b.customer_email = ? AND ? != '')
         ORDER BY b.id DESC
     ");
-    $stmt->execute([$user_id]);
-    $bookings = $stmt->fetchAll();
+    $stmt->execute([$userId, $userId, $userEmail, $userEmail]);
+    $myBookings = $stmt->fetchAll();
 } catch (PDOException $e) {
-    $bookings = [];
+    $myBookings = [];
 }
 ?>
 
-<div class="container my-5">
+<div class="container my-4">
+    <!-- TIÊU ĐỀ TRANG -->
     <div class="row mb-4">
         <div class="col-12 text-center">
             <h2 class="fw-bold text-custom-primary"><i class="fa-solid fa-clock-rotate-left me-2"></i>Lịch Sử Đặt Sân</h2>
-            <p class="text-muted">Quản lý danh sách các sân cầu lông bạn đã đặt</p>
+            <p class="text-muted">Quản lý danh sách các sân cầu lông bạn đã đặt và theo dõi trạng thái thanh toán</p>
             <div class="mx-auto bg-success mb-4" style="width: 80px; height: 3px;"></div>
         </div>
     </div>
 
-    <?php if (!empty($success)): ?>
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="fa-solid fa-circle-check me-2"></i><?= $success ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    <?php endif; ?>
-
-    <?php if (!empty($error)): ?>
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <i class="fa-solid fa-triangle-exclamation me-2"></i><?= $error ?>
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    <?php endif; ?>
-
-    <div class="card card-custom p-4 bg-white">
-        <?php if (!empty($bookings)): ?>
-            <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th>#ID</th>
-                            <th>Tên sân</th>
-                            <th>Ngày chơi</th>
-                            <th>Khung giờ</th>
-                            <th>Tổng tiền</th>
-                            <th>Trạng thái</th>
-                            <th class="text-center">Thao tác</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($bookings as $b): ?>
-                            <tr>
-                                <td><strong>#<?= $b['id'] ?></strong></td>
-                                <td>
-                                    <div class="fw-bold text-dark"><?= htmlspecialchars($b['court_name']) ?></div>
-                                    <small class="text-muted"><?= htmlspecialchars($b['court_address']) ?></small>
-                                </td>
-                                <td><i class="fa-regular fa-calendar me-1 text-secondary"></i><?= date('d/m/Y', strtotime($b['booking_date'])) ?></td>
-                                <td><i class="fa-regular fa-clock me-1 text-secondary"></i><?= date('H:i', strtotime($b['start_time'])) ?> - <?= date('H:i', strtotime($b['end_time'])) ?></td>
-                                <td class="text-success fw-bold"><?= number_format($b['total_price'], 0, ',', '.') ?> VNĐ</td>
-                                <td>
-                                    <?php if ($b['status'] === 'pending'): ?>
-                                        <span class="badge bg-warning text-dark">Chờ duyệt</span>
-                                    <?php elseif ($b['status'] === 'confirmed'): ?>
-                                        <span class="badge bg-success">Đã xác nhận</span>
-                                    <?php elseif ($b['status'] === 'cancelled'): ?>
-                                        <span class="badge bg-secondary">Đã hủy</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td class="text-center">
-                                    <?php if ($b['status'] === 'pending'): ?>
-                                        <a href="my-bookings.php?action=cancel&id=<?= $b['id'] ?>" 
-                                           class="btn btn-outline-danger btn-sm" 
-                                           onclick="return confirm('Bạn có chắc chắn muốn hủy đơn đặt sân này không?');">
-                                            <i class="fa-solid fa-xmark me-1"></i>Hủy lịch
-                                        </a>
-                                    <?php else: ?>
-                                        <button class="btn btn-light btn-sm text-muted" disabled>Không thể hủy</button>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        <?php else: ?>
-            <div class="text-center py-5">
+    <?php if (empty($myBookings)): ?>
+        <!-- KHUNG TRỐNG KHI CHƯA CÓ LỊCH SỬ ĐẶT SÂN -->
+        <div class="col-12 text-center py-5">
+            <div class="card card-custom p-5 bg-white shadow-sm" style="max-width: 700px; margin: 0 auto;">
                 <i class="fa-solid fa-calendar-xmark fs-1 text-muted mb-3"></i>
-                <h5 class="text-muted">Bạn chưa có lịch sử đặt sân nào!</h5>
-                <p class="text-muted small">Hãy chọn cho mình một sân ưng ý và tiến hành đặt lịch ngay nhé.</p>
-                <a href="courts.php" class="btn btn-custom-primary btn-sm mt-2">Xem danh sách sân</a>
+                <h5 class="text-dark fw-bold mb-2">Bạn chưa có lịch sử đặt sân nào!</h5>
+                <p class="text-muted small mb-4">Hãy chọn cho mình một sân ưng ý và tiến hành đặt lịch ngay nhé.</p>
+                <div>
+                    <a href="courts.php" class="btn btn-custom-primary btn-sm px-4 py-2 fw-bold">
+                        <i class="fa-solid fa-list me-1"></i> Xem danh sách sân
+                    </a>
+                </div>
             </div>
-        <?php endif; ?>
-    </div>
+        </div>
+    <?php else: ?>
+        <!-- DANH SÁCH HIỂN THỊ LỊCH SỬ ĐẶT SÂN (LƯỚI 2 CỘT) -->
+        <div class="row g-4">
+            <?php foreach ($myBookings as $booking): ?>
+                <div class="col-md-6">
+                    <div class="card card-custom h-100 bg-white p-3 shadow-sm border-0 rounded-4">
+                        <div class="card-body d-flex flex-column">
+
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold text-dark fs-6">Mã đơn: #<?= $booking['id'] ?></span>
+                                <?php
+                                $statusClass = 'bg-warning text-dark';
+                                $statusText = 'Đang chờ thanh toán';
+                                if ($booking['status'] === 'confirmed') {
+                                    $statusClass = 'bg-success text-white';
+                                    $statusText = 'Đã xác nhận (Thành công)';
+                                } elseif ($booking['status'] === 'cancelled') {
+                                    $statusClass = 'bg-danger text-white';
+                                    $statusText = 'Đã hủy';
+                                }
+                                ?>
+                                <span class="badge <?= $statusClass ?> px-3 py-2 rounded-pill small fw-semibold">
+                                    <?= $statusText ?>
+                                </span>
+                            </div>
+
+                            <hr class="text-muted opacity-25 my-2">
+
+                            <h5 class="card-title fw-bold text-dark mb-2">
+                                <i class="fa-solid fa-location-dot text-danger me-2"></i>
+                                <?= htmlspecialchars($booking['court_name'] ?? 'Sân Cầu Lông') ?>
+                            </h5>
+
+                            <p class="text-muted small mb-2">
+                                <i class="fa-regular fa-calendar me-2 text-success"></i>Ngày đặt: <strong><?= $booking['booking_date'] ?></strong>
+                            </p>
+
+                            <p class="text-muted small mb-2">
+                                <i class="fa-regular fa-clock me-2 text-success"></i>Khung giờ: <strong><?= $booking['start_time'] ?> - <?= $booking['end_time'] ?></strong>
+                            </p>
+
+                            <p class="text-muted small mb-3">
+                                <i class="fa-solid fa-money-bill-wave me-2 text-success"></i>Tổng tiền: <strong class="text-success fs-6"><?= number_format($booking['total_amount'] ?? 0, 0, ',', '.') ?> VNĐ</strong>
+                            </p>
+
+                            <div class="mt-auto pt-3 border-top d-flex justify-content-between align-items-center">
+                                <small class="text-muted">Email nhận hóa đơn:</small>
+                                <span class="small fw-semibold text-dark"><?= htmlspecialchars($booking['customer_email']) ?></span>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
 </div>
 
 <?php

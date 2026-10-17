@@ -92,6 +92,7 @@ try {
                 <a href="index.php" class="active"><i class="fa-solid fa-calendar-days me-2"></i>Quản lý đặt sân</a>
                 <a href="courts.php"><i class="fa-solid fa-layer-group me-2"></i>Quản lý sân & giá</a>
                 <a href="services.php"><i class="fa-solid fa-concierge-bell me-2"></i>Quản lý dịch vụ</a>
+                <a href="users.php"><i class="fa-solid fa-users me-2"></i>Quản lý người dùng</a>
                 <a href="../index.php" target="_blank"><i class="fa-solid fa-globe me-2"></i>Xem trang web</a>
                 <a href="../logout.php" class="text-danger mt-5"><i class="fa-solid fa-right-from-bracket me-2"></i>Đăng xuất</a>
             </nav>

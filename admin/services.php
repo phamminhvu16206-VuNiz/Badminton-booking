@@ -13,7 +13,22 @@ if (!isset($_SESSION['user_id']) || $user_role !== 'admin') {
 $success = '';
 $error = '';
 
-// Sửa dịch vụ
+// Xử lý XÓA DỊCH VỤ
+if (isset($_GET['action']) && $_GET['action'] === 'delete') {
+    $service_id = intval($_GET['id'] ?? 0);
+    try {
+        $stmt_del = $conn->prepare("DELETE FROM services WHERE id = ?");
+        if ($stmt_del->execute([$service_id])) {
+            $success = "Xóa dịch vụ thành công!";
+        } else {
+            $error = "Xóa dịch vụ thất bại!";
+        }
+    } catch (PDOException $e) {
+        $error = "Không thể xóa dịch vụ này!";
+    }
+}
+
+// Xử lý CẬP NHẬT dịch vụ
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['btn_update_service'])) {
     $id = intval($_POST['service_id']);
     $name = trim($_POST['name']);
@@ -32,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['btn_update_service'])
     }
 }
 
-// Thêm dịch vụ
+// Xử lý THÊM DỊCH VỤ MỚI
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['btn_add_service'])) {
     $name = trim($_POST['name']);
     $price = floatval($_POST['price']);
@@ -112,6 +127,7 @@ $services = $conn->query("SELECT * FROM services ORDER BY id ASC")->fetchAll();
                     <a href="index.php"><i class="fa-solid fa-calendar-days me-2"></i>Quản lý đặt sân</a>
                     <a href="courts.php"><i class="fa-solid fa-layer-group me-2"></i>Quản lý sân & giá</a>
                     <a href="services.php" class="active"><i class="fa-solid fa-concierge-bell me-2"></i>Quản lý dịch vụ</a>
+                    <a href="users.php"><i class="fa-solid fa-users me-2"></i>Quản lý người dùng</a>
                     <a href="../index.php" target="_blank"><i class="fa-solid fa-globe me-2"></i>Xem trang web</a>
                     <a href="../logout.php" class="text-danger mt-5"><i class="fa-solid fa-right-from-bracket me-2"></i>Đăng xuất</a>
                 </nav>
@@ -122,7 +138,7 @@ $services = $conn->query("SELECT * FROM services ORDER BY id ASC")->fetchAll();
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div>
                         <h3 class="fw-bold text-dark">Quản Lý Dịch Vụ Bổ Sung</h3>
-                        <p class="text-muted small mb-0">Thay đổi đơn giá dịch vụ thuê vợt, nước uống, cầu lông...</p>
+                        <p class="text-muted small mb-0">Thay đổi đơn giá, thêm và xóa dịch vụ bổ sung</p>
                     </div>
                     <button class="btn btn-success fw-bold" data-bs-toggle="modal" data-bs-target="#addServiceModal">
                         <i class="fa-solid fa-plus me-1"></i> Thêm Dịch Vụ
@@ -156,9 +172,14 @@ $services = $conn->query("SELECT * FROM services ORDER BY id ASC")->fetchAll();
                                         <td class="text-danger fw-bold fs-5"><?= number_format($s['price']) ?> VNĐ</td>
                                         <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($s['unit']) ?></span></td>
                                         <td class="text-center">
-                                            <button class="btn btn-sm btn-warning fw-bold" data-bs-toggle="modal" data-bs-target="#editService<?= $s['id'] ?>">
+                                            <!-- Nút Sửa -->
+                                            <button class="btn btn-sm btn-warning fw-bold me-1" data-bs-toggle="modal" data-bs-target="#editService<?= $s['id'] ?>">
                                                 <i class="fa-solid fa-pen-to-square me-1"></i> Sửa Giá
                                             </button>
+                                            <!-- Nút Xóa -->
+                                            <a href="services.php?action=delete&id=<?= $s['id'] ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Có chắc chắn muốn xóa dịch vụ này không?');">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </a>
                                         </td>
                                     </tr>
 

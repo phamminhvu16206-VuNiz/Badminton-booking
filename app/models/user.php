@@ -13,6 +13,7 @@ class User
         $this->db = Database::getInstance()->getConnection();
     }
 
+    // 1. Lấy thông tin user theo Email (dùng cho đăng nhập, quên mật khẩu)
     public function getUserByEmail($email)
     {
         $stmt = $this->db->prepare("SELECT * FROM users WHERE email = ?");
@@ -20,7 +21,41 @@ class User
         return $stmt->fetch();
     }
 
-    // 1. Lưu OTP và thời gian hết hạn (sau 15 phút)
+    // 2. Lấy thông tin user theo ID (dùng cho trang cá nhân, phân quyền)
+    public function getUserById($id)
+    {
+        $stmt = $this->db->prepare("SELECT * FROM users WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetch();
+    }
+
+    // 3. Đăng ký / Tạo tài khoản mới
+    public function create($data)
+    {
+        $stmt = $this->db->prepare("INSERT INTO users (name, email, password, phone, role, avatar) VALUES (?, ?, ?, ?, ?, ?)");
+        return $stmt->execute([
+            $data['name'] ?? $data['full_name'] ?? '',
+            $data['email'],
+            $data['password'],
+            $data['phone'] ?? null,
+            $data['role'] ?? 'user',
+            $data['avatar'] ?? 'default-avatar.png'
+        ]);
+    }
+
+    // 4. Cập nhật thông tin cá nhân & ảnh đại diện
+    public function updateProfile($userId, $data)
+    {
+        $stmt = $this->db->prepare("UPDATE users SET name = ?, phone = ?, avatar = ? WHERE id = ?");
+        return $stmt->execute([
+            $data['name'] ?? $data['full_name'] ?? '',
+            $data['phone'] ?? null,
+            $data['avatar'] ?? 'default-avatar.png',
+            $userId
+        ]);
+    }
+
+    // 5. Lưu OTP và thời gian hết hạn (sau 15 phút)
     public function saveOtp($userId, $otp)
     {
         // Thiết lập múi giờ Việt Nam
@@ -31,7 +66,7 @@ class User
         return $stmt->execute([$otp, $expiry, $userId]);
     }
 
-    // 2. Kiểm tra OTP bằng thời gian chuẩn của PHP (Tránh lỗi timezone MySQL)
+    // 6. Kiểm tra OTP bằng thời gian chuẩn của PHP (Tránh lỗi timezone MySQL)
     public function verifyOtp($email, $otp)
     {
         date_default_timezone_set('Asia/Ho_Chi_Minh');
@@ -50,7 +85,7 @@ class User
         return false;
     }
 
-    // 3. Cập nhật mật khẩu mới & Xóa OTP
+    // 7. Cập nhật mật khẩu mới & Xóa OTP
     public function updatePassword($userId, $newPassword)
     {
         $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);

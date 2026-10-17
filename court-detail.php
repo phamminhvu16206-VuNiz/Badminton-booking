@@ -24,13 +24,18 @@ require_once __DIR__ . '/includes/header.php';
 <div class="container my-5">
     <div class="row g-4">
         <!-- Cột trái: Hình ảnh sân -->
-        <div class="col-lg-7">
-            <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-                <img src="<?= !empty($court['image']) ? htmlspecialchars($court['image']) : 'assets/images/default-court.jpg' ?>"
-                    alt="<?= htmlspecialchars($court['name']) ?>"
-                    class="img-fluid w-100 object-fit-cover"
-                    style="max-height: 420px;"
-                    onerror="this.src='https://placehold.co/800x450?text=San+Cau+Long'">
+        <div class="col-md-6">
+            <div class="position-relative rounded-4 overflow-hidden shadow-sm">
+                <img src="assets/images/<?= htmlspecialchars($court['image'] ?? 'san-1.jpg') ?>"
+                    class="img-fluid w-100 rounded-4"
+                    alt="<?= htmlspecialchars($court['name'] ?? 'Sân cầu lông') ?>"
+                    style="height: 380px; object-fit: cover;"
+                    onerror="this.src='https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=800&auto=format&fit=crop&q=60'">
+
+                <!-- Nhãn trạng thái trên ảnh -->
+                <span class="position-absolute top-0 end-0 m-3 badge <?= ($court['status'] ?? 'active') === 'active' ? 'bg-success' : 'bg-danger' ?> fs-6 px-3 py-2 rounded-pill shadow">
+                    <?= ($court['status'] ?? 'active') === 'active' ? 'Sân tiêu chuẩn' : 'Bảo trì' ?>
+                </span>
             </div>
         </div>
 
