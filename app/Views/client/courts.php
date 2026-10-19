@@ -1,50 +1,4 @@
-<?php
-// File: courts.php
-// Chức năng: Hiển thị danh sách tất cả các sân, hỗ trợ tìm kiếm và bộ lọc theo giá/trạng thái
-
-require_once 'config/database.php';
-require_once 'includes/header.php';
-
-// Nhận các tham số tìm kiếm và lọc từ form GET
-$keyword = trim($_GET['keyword'] ?? '');
-$filter_price = $_GET['filter_price'] ?? '';
-$filter_status = $_GET['filter_status'] ?? '';
-
-// Xây dựng câu truy vấn SQL linh hoạt với Prepared Statements
-$sql = "SELECT * FROM courts WHERE 1=1";
-$params = [];
-
-if (!empty($keyword)) {
-    $sql .= " AND (name LIKE ? OR address LIKE ?)";
-    $params[] = "%$keyword%";
-    $params[] = "%$keyword%";
-}
-
-if (!empty($filter_price)) {
-    if ($filter_price == 'low') {
-        $sql .= " AND price < 120000";
-    } elseif ($filter_price == 'medium') {
-        $sql .= " AND price BETWEEN 120000 AND 150000";
-    } elseif ($filter_price == 'high') {
-        $sql .= " AND price > 150000";
-    }
-}
-
-if (!empty($filter_status)) {
-    $sql .= " AND status = ?";
-    $params[] = $filter_status;
-}
-
-$sql .= " ORDER BY id DESC";
-
-try {
-    $stmt = $conn->prepare($sql);
-    $stmt->execute($params);
-    $courts = $stmt->fetchAll();
-} catch (PDOException $e) {
-    $courts = [];
-}
-?>
+<?php require_once APP_ROOT . '/app/Views/layouts/header.php'; ?>
 
 <div class="container my-4">
     <!-- TIÊU ĐỀ TRANG -->
@@ -58,7 +12,7 @@ try {
 
     <!-- THANH TÌM KIẾM VÀ BỘ LỌC -->
     <div class="card card-custom p-4 mb-5 bg-white">
-        <form action="courts.php" method="GET" class="row g-3">
+        <form action="home/courts" method="GET" class="row g-3">
             <div class="col-md-4">
                 <label for="keyword" class="form-label fw-semibold small">Tìm kiếm sân</label>
                 <div class="input-group">
@@ -90,7 +44,7 @@ try {
                 <button type="submit" class="btn btn-custom-primary w-100 fw-bold">
                     <i class="fa-solid fa-filter me-1"></i>Lọc
                 </button>
-                <a href="courts.php" class="btn btn-outline-secondary" title="Đặt lại bộ lọc"><i class="fa-solid fa-rotate-right"></i></a>
+                <a href="home/courts" class="btn btn-outline-secondary" title="Đặt lại bộ lọc"><i class="fa-solid fa-rotate-right"></i></a>
             </div>
         </form>
     </div>
@@ -122,11 +76,11 @@ try {
                             </p>
                             
                             <div class="mt-auto d-flex gap-2">
-                                <a href="court-detail.php?id=<?= $court['id'] ?>" class="btn btn-outline-success btn-sm w-50">
+                                <a href="home/detail/<?= (int) $court['id'] ?>" class="btn btn-outline-success btn-sm w-50">
                                     <i class="fa-solid fa-circle-info me-1"></i>Chi tiết
                                 </a>
                                 <?php if ($court['status'] === 'active'): ?>
-                                    <a href="booking.php?court_id=<?= $court['id'] ?>" class="btn btn-custom-primary btn-sm w-50">
+                                    <a href="booking/index?court_id=<?= (int) $court['id'] ?>" class="btn btn-custom-primary btn-sm w-50">
                                         <i class="fa-solid fa-bolt me-1"></i>Đặt sân
                                     </a>
                                 <?php else: ?>
@@ -143,7 +97,7 @@ try {
                     <i class="fa-solid fa-face-sad-tear fs-1 text-muted mb-3"></i>
                     <h5 class="text-muted">Không tìm thấy sân cầu lông nào phù hợp với yêu cầu của bạn!</h5>
                     <p class="text-muted small">Vui lòng thử lại với từ khóa hoặc bộ lọc khác.</p>
-                    <div><a href="courts.php" class="btn btn-custom-primary btn-sm mt-2">Xem tất cả sân</a></div>
+                    <div><a href="home/courts" class="btn btn-custom-primary btn-sm mt-2">Xem tất cả sân</a></div>
                 </div>
             </div>
         <?php endif; ?>
@@ -151,5 +105,5 @@ try {
 </div>
 
 <?php
-require_once 'includes/footer.php';
+require_once APP_ROOT . '/app/Views/layouts/footer.php';
 ?>

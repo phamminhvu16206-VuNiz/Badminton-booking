@@ -1,69 +1,9 @@
-<?php
-// File: admin/index.php
-// Chức năng: Trang quản trị dành cho Admin để xem và duyệt các đơn đặt sân
-
-session_start();
-require_once '../config/database.php';
-
-// Kiểm tra quyền Admin (Yêu cầu phải đăng nhập và role là admin)
-$user_role = $_SESSION['user_role'] ?? $_SESSION['role'] ?? '';
-if (!isset($_SESSION['user_id']) || $user_role !== 'admin') {
-    $_SESSION['error'] = 'Bạn không có quyền truy cập vào trang quản trị!';
-    header('Location: ../login.php');
-    exit();
-}
-
-$success = '';
-$error = '';
-
-// Xử lý thay đổi trạng thái đơn đặt sân (Duyệt hoặc Hủy)
-if (isset($_GET['action']) && isset($_GET['id'])) {
-    $action = $_GET['action'];
-    $booking_id = (int)$_GET['id'];
-
-    try {
-        if ($action === 'confirm') {
-            $stmt = $conn->prepare("UPDATE bookings SET status = 'confirmed' WHERE id = ?");
-            if ($stmt->execute([$booking_id])) {
-                $success = 'Đã duyệt đơn đặt sân thành công!';
-            } else {
-                $error = 'Không thể duyệt đơn, vui lòng thử lại.';
-            }
-        } elseif ($action === 'cancel') {
-            $stmt = $conn->prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?");
-            if ($stmt->execute([$booking_id])) {
-                $success = 'Đã hủy đơn đặt sân thành công!';
-            } else {
-                $error = 'Không thể hủy đơn, vui lòng thử lại.';
-            }
-        }
-    } catch (PDOException $e) {
-        $error = 'Lỗi cơ sở dữ liệu: ' . $e->getMessage();
-    }
-}
-
-// Truy vấn lấy danh sách tất cả các đơn đặt sân kèm thông tin user và sân
-try {
-    $stmt = $conn->prepare("
-        SELECT b.*, u.name AS user_name, u.email AS user_email, u.phone AS user_phone,
-               c.name AS court_name
-        FROM bookings b 
-        JOIN users u ON b.user_id = u.id 
-        JOIN courts c ON b.court_id = c.id 
-        ORDER BY b.id DESC
-    ");
-    $stmt->execute();
-    $all_bookings = $stmt->fetchAll();
-} catch (PDOException $e) {
-    $all_bookings = [];
-}
-?>
-
 <!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="<?= htmlspecialchars((defined('APP_BASE_URL') ? APP_BASE_URL : '') . '/admin/', ENT_QUOTES, 'UTF-8') ?>">
     <title>Trang Quản Trị Admin - Badminton Booking</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -89,12 +29,13 @@ try {
             <div class="mb-4 text-muted small">Xin chào, <strong class="text-white"><?= htmlspecialchars($_SESSION['user_name'] ?? 'Admin') ?></strong></div>
             
             <nav class="nav flex-column">
-                <a href="index.php" class="active"><i class="fa-solid fa-calendar-days me-2"></i>Quản lý đặt sân</a>
-                <a href="courts.php"><i class="fa-solid fa-layer-group me-2"></i>Quản lý sân & giá</a>
-                <a href="services.php"><i class="fa-solid fa-concierge-bell me-2"></i>Quản lý dịch vụ</a>
-                <a href="users.php"><i class="fa-solid fa-users me-2"></i>Quản lý người dùng</a>
-                <a href="../index.php" target="_blank"><i class="fa-solid fa-globe me-2"></i>Xem trang web</a>
-                <a href="../logout.php" class="text-danger mt-5"><i class="fa-solid fa-right-from-bracket me-2"></i>Đăng xuất</a>
+                <a href="bookings" class="active"><i class="fa-solid fa-calendar-days me-2"></i>Quản lý đặt sân</a>
+                <a href="cancellation-requests"><i class="fa-solid fa-rotate-left me-2"></i>Yêu cầu hủy / hoàn tiền</a>
+                <a href="courts"><i class="fa-solid fa-layer-group me-2"></i>Quản lý sân & giá</a>
+                <a href="services"><i class="fa-solid fa-concierge-bell me-2"></i>Quản lý dịch vụ</a>
+                <a href="users"><i class="fa-solid fa-users me-2"></i>Quản lý người dùng</a>
+                <a href="../home/index" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-globe me-2"></i>Xem trang web</a>
+                <a href="../auth/logout" class="text-danger mt-5"><i class="fa-solid fa-right-from-bracket me-2"></i>Đăng xuất</a>
             </nav>
         </div>
 
@@ -130,6 +71,7 @@ try {
                                     <th>#ID</th>
                                     <th>Khách hàng</th>
                                     <th>Sân</th>
+                                    <th>Sân số mấy</th>
                                     <th>Ngày chơi</th>
                                     <th>Khung giờ</th>
                                     <th>Trạng thái</th>
@@ -145,6 +87,7 @@ try {
                                             <small class="text-muted"><?= htmlspecialchars($b['user_phone'] ?? '') ?> - <?= htmlspecialchars($b['user_email'] ?? '') ?></small>
                                         </td>
                                         <td><span class="fw-semibold text-success"><?= htmlspecialchars($b['court_name'] ?? '') ?></span></td>
+                                        <td><span class="badge bg-primary">Sân <?= (int) ($b['court_number'] ?? 1) ?></span></td>
                                         <td><?= date('d/m/Y', strtotime($b['booking_date'])) ?></td>
                                         <td><?= date('H:i', strtotime($b['start_time'])) ?> - <?= date('H:i', strtotime($b['end_time'])) ?></td>
                                         <td>
@@ -158,10 +101,10 @@ try {
                                         </td>
                                         <td class="text-center">
                                             <?php if ($b['status'] === 'pending'): ?>
-                                                <a href="index.php?action=confirm&id=<?= $b['id'] ?>" class="btn btn-success btn-sm fw-bold me-1" title="Duyệt đơn">
+                                                <a href="bookings?action=confirm&id=<?= (int) $b['id'] ?>" class="btn btn-success btn-sm fw-bold me-1" title="Duyệt đơn">
                                                     <i class="fa-solid fa-check"></i> Duyệt
                                                 </a>
-                                                <a href="index.php?action=cancel&id=<?= $b['id'] ?>" class="btn btn-outline-danger btn-sm" onclick="return confirm('Bạn có chắc chắn muốn hủy đơn này không?');" title="Hủy đơn">
+                                                <a href="bookings?action=cancel&id=<?= (int) $b['id'] ?>" class="btn btn-outline-danger btn-sm" onclick="return confirm('Bạn có chắc chắn muốn hủy đơn này không?');" title="Hủy đơn">
                                                     <i class="fa-solid fa-xmark"></i>
                                                 </a>
                                             <?php else: ?>

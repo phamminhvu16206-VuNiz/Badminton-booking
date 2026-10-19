@@ -57,6 +57,8 @@ class Mailer
 
             $mail->Subject = "Hóa Đơn Xác Nhận Đặt Sân - Mã Đơn #{$bookingId}";
             $formattedPrice = number_format($totalAmount) . ' VNĐ';
+            $bookingCode = BookingQr::bookingCode($bookingId);
+            $qrCodeUrl = htmlspecialchars(BookingQr::imageUrl($bookingId, 240), ENT_QUOTES, 'UTF-8');
 
             // Nội dung HTML hóa đơn
             $mail->Body = "
@@ -92,6 +94,11 @@ class Mailer
                         </table>
 
                         <p style='font-size: 13px; color: #6c757d;'>Nội dung giao dịch đã ghi nhận: <strong>DATSAN {$bookingId}</strong>.</p>
+                        <div style='margin: 24px auto; padding: 18px; max-width: 280px; text-align: center; border: 1px solid #dee2e6; border-radius: 8px;'>
+                            <p style='margin: 0 0 10px; font-weight: bold;'>Mã QR đơn đặt sân</p>
+                            <img src='{$qrCodeUrl}' width='200' height='200' alt='Mã QR đơn đặt sân #{$bookingId}' style='display: block; width: 200px; height: 200px; margin: 0 auto;'>
+                            <p style='margin: 10px 0 0; color: #6c757d; font-size: 12px;'>Mã đơn: <strong>{$bookingCode}</strong></p>
+                        </div>
                         <hr style='border: none; border-top: 1px solid #eeeeee; margin: 20px 0;'>
                         <p style='font-size: 11px; color: #999999; text-align: center; margin-bottom: 0;'>
                             Đây là email xác nhận tự động từ hệ thống Badminton Booking. Vui lòng không phản hồi lại email này.
@@ -101,7 +108,7 @@ class Mailer
             ";
 
             // Bản thuần cho bộ lọc Spam
-            $mail->AltBody = "Xin chào {$toName}, Đơn đặt sân #{$bookingId} ({$courtName}, Ngày: {$date}, Khung giờ: {$timeSlot}) đã thanh toán thành công. Tổng tiền: {$formattedPrice}.";
+            $mail->AltBody = "Xin chào {$toName}, Đơn đặt sân #{$bookingId} ({$courtName}, Ngày: {$date}, Khung giờ: {$timeSlot}) đã thanh toán thành công. Tổng tiền: {$formattedPrice}. Mã QR chứa mã đơn {$bookingCode}.";
 
             $mail->send();
             return true;

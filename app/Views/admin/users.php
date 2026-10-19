@@ -1,99 +1,10 @@
-<?php
-// File: admin/users.php
-session_start();
-require_once '../config/database.php';
-
-$user_role = $_SESSION['user_role'] ?? $_SESSION['role'] ?? '';
-if (!isset($_SESSION['user_id']) || $user_role !== 'admin') {
-    $_SESSION['error'] = 'Bạn không có quyền truy cập!';
-    header('Location: ../login.php');
-    exit();
-}
-
-$success = '';
-$error = '';
-
-// 1. Xử lý Xóa người dùng
-if (isset($_GET['action']) && $_GET['action'] === 'delete') {
-    $delete_id = intval($_GET['id'] ?? 0);
-    if ($delete_id === $_SESSION['user_id']) {
-        $error = "Con vợ không thể tự xóa tài khoản admin của chính mình!";
-    } else {
-        $stmt_del = $conn->prepare("DELETE FROM users WHERE id = ?");
-        if ($stmt_del->execute([$delete_id])) {
-            $success = "Xóa người dùng thành công!";
-        } else {
-            $error = "Xóa người dùng thất bại!";
-        }
-    }
-}
-
-// 2. Xử lý Thêm hoặc Cập nhật thông tin / Cấp quyền người dùng
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['btn_add_user'])) {
-        $name = trim($_POST['name']);
-        $email = trim($_POST['email']);
-        $phone = trim($_POST['phone']);
-        $role = $_POST['role'] ?? 'user';
-        $password = trim($_POST['password']);
-
-        if (empty($name) || empty($email)) {
-            $error = "Vui lòng nhập đầy đủ tên và email!";
-        } else {
-            $stmt_check = $conn->prepare("SELECT id FROM users WHERE email = ?");
-            $stmt_check->execute([$email]);
-            if ($stmt_check->rowCount() > 0) {
-                $error = "Email này đã tồn tại trong hệ thống!";
-            } else {
-                $hashed_password = password_hash(!empty($password) ? $password : '123456', PASSWORD_BCRYPT);
-                $stmt_add = $conn->prepare("INSERT INTO users (name, email, phone, role, password) VALUES (?, ?, ?, ?, ?)");
-                if ($stmt_add->execute([$name, $email, $phone, $role, $hashed_password])) {
-                    $success = "Thêm người dùng mới thành công!";
-                } else {
-                    $error = "Thêm thất bại!";
-                }
-            }
-        }
-    }
-
-    if (isset($_POST['btn_update_user'])) {
-        $user_id = intval($_POST['user_id']);
-        $name = trim($_POST['name']);
-        $email = trim($_POST['email']);
-        $phone = trim($_POST['phone']);
-        $role = $_POST['role'] ?? 'user';
-        $password = trim($_POST['password']);
-
-        if (empty($name) || empty($email)) {
-            $error = "Tên và email không được để trống!";
-        } else {
-            if (!empty($password)) {
-                $hashed_password = password_hash($password, PASSWORD_BCRYPT);
-                $stmt_up = $conn->prepare("UPDATE users SET name = ?, email = ?, phone = ?, role = ?, password = ? WHERE id = ?");
-                $result = $stmt_up->execute([$name, $email, $phone, $role, $hashed_password, $user_id]);
-            } else {
-                $stmt_up = $conn->prepare("UPDATE users SET name = ?, email = ?, phone = ?, role = ? WHERE id = ?");
-                $result = $stmt_up->execute([$name, $email, $phone, $role, $user_id]);
-            }
-
-            if ($result) {
-                $success = "Cập nhật thông tin người dùng thành công!";
-            } else {
-                $error = "Cập nhật thất bại!";
-            }
-        }
-    }
-}
-
-$users = $conn->query("SELECT * FROM users ORDER BY id ASC")->fetchAll();
-?>
-
 <!DOCTYPE html>
 <html lang="vi">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="<?= htmlspecialchars((defined('APP_BASE_URL') ? APP_BASE_URL : '') . '/admin/', ENT_QUOTES, 'UTF-8') ?>">
     <title>Quản Lý Người Dùng - Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -144,12 +55,13 @@ $users = $conn->query("SELECT * FROM users ORDER BY id ASC")->fetchAll();
                 <div class="mb-4 text-muted small">Xin chào, <strong class="text-white"><?= htmlspecialchars($_SESSION['user_name'] ?? 'Admin') ?></strong></div>
 
                 <nav class="nav flex-column">
-                    <a href="index.php"><i class="fa-solid fa-calendar-days me-2"></i>Quản lý đặt sân</a>
-                    <a href="courts.php"><i class="fa-solid fa-layer-group me-2"></i>Quản lý sân & giá</a>
-                    <a href="services.php"><i class="fa-solid fa-concierge-bell me-2"></i>Quản lý dịch vụ</a>
-                    <a href="users.php" class="active"><i class="fa-solid fa-users me-2"></i>Quản lý người dùng</a>
-                    <a href="../index.php" target="_blank"><i class="fa-solid fa-globe me-2"></i>Xem trang web</a>
-                    <a href="../logout.php" class="text-danger mt-5"><i class="fa-solid fa-right-from-bracket me-2"></i>Đăng xuất</a>
+                    <a href="bookings"><i class="fa-solid fa-calendar-days me-2"></i>Quản lý đặt sân</a>
+                    <a href="cancellation-requests"><i class="fa-solid fa-rotate-left me-2"></i>Yêu cầu hủy / hoàn tiền</a>
+                    <a href="courts"><i class="fa-solid fa-layer-group me-2"></i>Quản lý sân & giá</a>
+                    <a href="services"><i class="fa-solid fa-concierge-bell me-2"></i>Quản lý dịch vụ</a>
+                    <a href="users" class="active"><i class="fa-solid fa-users me-2"></i>Quản lý người dùng</a>
+                    <a href="../home/index" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-globe me-2"></i>Xem trang web</a>
+                    <a href="../auth/logout" class="text-danger mt-5"><i class="fa-solid fa-right-from-bracket me-2"></i>Đăng xuất</a>
                 </nav>
             </div>
 
@@ -190,9 +102,14 @@ $users = $conn->query("SELECT * FROM users ORDER BY id ASC")->fetchAll();
                                 <?php foreach ($users as $u): ?>
                                     <?php
                                     $avatarFile = $u['avatar'] ?? '';
-                                    $uAvatarPath = !empty($avatarFile) && file_exists(__DIR__ . '/../assets/images/avatars/' . $avatarFile)
-                                        ? '../assets/images/avatars/' . $avatarFile
-                                        : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+                                    $avatarName = basename($avatarFile);
+                                    $newAvatarPath = APP_ROOT . '/public/uploads/avatars/' . $avatarName;
+                                    $oldAvatarPath = APP_ROOT . '/assets/images/avatars/' . $avatarName;
+                                    $uAvatarPath = !empty($avatarName) && file_exists($newAvatarPath)
+                                        ? '../public/uploads/avatars/' . rawurlencode($avatarName)
+                                        : (!empty($avatarName) && file_exists($oldAvatarPath)
+                                            ? '../assets/images/avatars/' . rawurlencode($avatarName)
+                                            : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png');
                                     ?>
                                     <tr>
                                         <td><strong>#<?= $u['id'] ?></strong></td>
@@ -214,7 +131,7 @@ $users = $conn->query("SELECT * FROM users ORDER BY id ASC")->fetchAll();
                                                 <i class="fa-solid fa-pen-to-square me-1"></i> Sửa
                                             </button>
                                             <?php if ($u['id'] !== $_SESSION['user_id']): ?>
-                                                <a href="users.php?action=delete&id=<?= $u['id'] ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Có chắc chắn muốn xóa tài khoản này không?');">
+                                                <a href="users?action=delete&id=<?= (int) $u['id'] ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Có chắc chắn muốn xóa tài khoản này không?');">
                                                     <i class="fa-solid fa-trash"></i>
                                                 </a>
                                             <?php endif; ?>

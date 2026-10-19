@@ -1,25 +1,4 @@
-<?php
-// File: court-detail.php - Trang hiển thị chi tiết thông tin sân
-session_start();
-require_once __DIR__ . '/config/database.php';
-
-$court_id = intval($_GET['id'] ?? 0);
-
-try {
-    $stmt = $conn->prepare("SELECT * FROM courts WHERE id = ?");
-    $stmt->execute([$court_id]);
-    $court = $stmt->fetch();
-
-    if (!$court) {
-        header('Location: courts.php');
-        exit();
-    }
-} catch (PDOException $e) {
-    die("Lỗi kết nối CSDL: " . $e->getMessage());
-}
-
-require_once __DIR__ . '/includes/header.php';
-?>
+<?php require_once APP_ROOT . '/app/Views/layouts/header.php'; ?>
 
 <div class="container my-5">
     <div class="row g-4">
@@ -34,7 +13,7 @@ require_once __DIR__ . '/includes/header.php';
 
                 <!-- Nhãn trạng thái trên ảnh -->
                 <span class="position-absolute top-0 end-0 m-3 badge <?= ($court['status'] ?? 'active') === 'active' ? 'bg-success' : 'bg-danger' ?> fs-6 px-3 py-2 rounded-pill shadow">
-                    <?= ($court['status'] ?? 'active') === 'active' ? 'Sân tiêu chuẩn' : 'Bảo trì' ?>
+                    <?= ($court['status'] ?? 'active') === 'active' ? 'Đang hoạt động' : 'Đang bảo trì' ?>
                 </span>
             </div>
         </div>
@@ -44,7 +23,9 @@ require_once __DIR__ . '/includes/header.php';
             <div class="card border-0 shadow-sm rounded-4 h-100">
                 <div class="card-body p-4 d-flex flex-column justify-content-between">
                     <div>
-                        <span class="badge bg-success mb-2 px-3 py-2">Sân tiêu chuẩn</span>
+                        <span class="badge <?= ($court['status'] ?? 'active') === 'active' ? 'bg-success' : 'bg-warning text-dark' ?> mb-2 px-3 py-2">
+                            <?= ($court['status'] ?? 'active') === 'active' ? 'Đang hoạt động' : 'Đang bảo trì' ?>
+                        </span>
                         <h2 class="fw-bold text-dark mb-3"><?= htmlspecialchars($court['name']) ?></h2>
 
                         <div class="mb-3">
@@ -73,9 +54,15 @@ require_once __DIR__ . '/includes/header.php';
 
                     <!-- Nút sang trang Đặt sân -->
                     <div class="mt-4 pt-3 border-top">
-                        <a href="booking.php?court_id=<?= $court['id'] ?>" class="btn btn-success btn-lg w-100 fw-bold py-3 text-uppercase shadow-sm">
-                            <i class="fa-solid fa-calendar-check me-2"></i> Tiến Hành Đặt Sân
-                        </a>
+                        <?php if (($court['status'] ?? 'active') === 'active'): ?>
+                            <a href="booking/index?court_id=<?= (int) $court['id'] ?>" class="btn btn-success btn-lg w-100 fw-bold py-3 text-uppercase shadow-sm">
+                                <i class="fa-solid fa-calendar-check me-2"></i> Tiến Hành Đặt Sân
+                            </a>
+                        <?php else: ?>
+                            <button type="button" class="btn btn-secondary btn-lg w-100 fw-bold py-3 text-uppercase shadow-sm" disabled>
+                                <i class="fa-solid fa-screwdriver-wrench me-2"></i> Sân đang bảo trì
+                            </button>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -83,4 +70,4 @@ require_once __DIR__ . '/includes/header.php';
     </div>
 </div>
 
-<?php require_once __DIR__ . '/includes/footer.php'; ?>
+<?php require_once APP_ROOT . '/app/Views/layouts/footer.php'; ?>

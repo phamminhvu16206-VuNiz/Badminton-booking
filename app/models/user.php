@@ -2,17 +2,8 @@
 // File: app/models/user.php
 namespace App\Models;
 
-use App\Core\Database;
-
-class User
+class User extends BaseModel
 {
-    private $db;
-
-    public function __construct()
-    {
-        $this->db = Database::getInstance()->getConnection();
-    }
-
     // 1. Lấy thông tin user theo Email (dùng cho đăng nhập, quên mật khẩu)
     public function getUserByEmail($email)
     {
@@ -27,6 +18,11 @@ class User
         $stmt = $this->db->prepare("SELECT * FROM users WHERE id = ?");
         $stmt->execute([$id]);
         return $stmt->fetch();
+    }
+
+    public function emailExists($email)
+    {
+        return (bool) $this->statement('SELECT id FROM users WHERE email = ?', [$email])->fetchColumn();
     }
 
     // 3. Đăng ký / Tạo tài khoản mới
@@ -46,7 +42,9 @@ class User
     // 4. Cập nhật thông tin cá nhân & ảnh đại diện
     public function updateProfile($userId, $data)
     {
-        $stmt = $this->db->prepare("UPDATE users SET name = ?, phone = ?, avatar = ? WHERE id = ?");
+        $columns = $this->db->query("SHOW COLUMNS FROM users")->fetchAll(\PDO::FETCH_COLUMN);
+        $nameColumn = in_array('full_name', $columns, true) ? 'full_name' : 'name';
+        $stmt = $this->db->prepare("UPDATE users SET {$nameColumn} = ?, phone = ?, avatar = ? WHERE id = ?");
         return $stmt->execute([
             $data['name'] ?? $data['full_name'] ?? '',
             $data['phone'] ?? null,
@@ -91,5 +89,37 @@ class User
         $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
         $stmt = $this->db->prepare("UPDATE users SET password = ?, reset_otp = NULL, reset_otp_expiry = NULL WHERE id = ?");
         return $stmt->execute([$hashedPassword, $userId]);
+    }
+
+    public function getAllUsers()
+    {
+        return $this->db->query('SELECT * FROM users ORDER BY id ASC')->fetchAll();
+    }
+
+    public function deleteUser($id)
+    {
+        return $this->statement('DELETE FROM users WHERE id = ?', [$id])->rowCount() > 0;
+    }
+
+    public function createAdminUser(array $data)
+    {
+        return (bool) $this->statement(
+            'INSERT INTO users (name, email, phone, role, password) VALUES (?, ?, ?, ?, ?)',
+            [$data['name'], $data['email'], $data['phone'], $data['role'], $data['password']]
+        );
+    }
+
+    public function updateAdminUser(array $data)
+    {
+        if (!empty($data['password'])) {
+            return $this->statement(
+                'UPDATE users SET name = ?, email = ?, phone = ?, role = ?, password = ? WHERE id = ?',
+                [$data['name'], $data['email'], $data['phone'], $data['role'], $data['password'], $data['id']]
+            )->execute();
+        }
+        return $this->statement(
+            'UPDATE users SET name = ?, email = ?, phone = ?, role = ? WHERE id = ?',
+            [$data['name'], $data['email'], $data['phone'], $data['role'], $data['id']]
+        )->execute();
     }
 }

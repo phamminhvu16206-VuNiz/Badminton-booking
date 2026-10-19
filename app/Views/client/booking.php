@@ -1,72 +1,4 @@
-<?php
-// File: booking.php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-require_once __DIR__ . '/autoload.php';
-
-use App\Controllers\BookingController;
-use App\Models\Court;
-use App\Models\Service;
-
-$bookingController = new BookingController();
-$courtModel = new Court();
-$serviceModel = new Service();
-
-// 1. API AJAX check slot đã đặt & check payment
-if (isset($_GET['action'])) {
-    if ($_GET['action'] === 'check_slots') {
-        $courtId = intval($_GET['court_id'] ?? 0);
-        $date = $_GET['date'] ?? date('Y-m-d');
-        $bookingController->checkSlotsApi($courtId, $date);
-    }
-    if ($_GET['action'] === 'check_payment') {
-        $bookingId = intval($_GET['booking_id'] ?? 0);
-        $bookingController->checkPaymentStatusApi($bookingId);
-    }
-}
-
-// 2. Xử lý khi người dùng bấm nút Xác nhận đặt sân
-$bookingResult = null;
-if (isset($_POST['btn_submit_booking'])) {
-    $userId = $_SESSION['user_id'] ?? 0;
-    $bookingResult = $bookingController->processBooking($_POST, $userId);
-}
-
-// Lấy thông tin sân và danh sách dịch vụ
-$courtId = intval($_GET['court_id'] ?? ($_GET['id'] ?? 1));
-$court = $courtModel->getCourtById($courtId);
-$services = $serviceModel->getAllServices();
-
-if (empty($services)) {
-    $services = [
-        ['id' => 1, 'name' => 'Thuê vợt cầu lông', 'price' => 30000, 'unit' => 'giờ'],
-        ['id' => 2, 'name' => 'Mua 1 ống cầu lông', 'price' => 25000, 'unit' => 'ống'],
-        ['id' => 3, 'name' => 'Nước suối (2 chai)', 'price' => 10000, 'unit' => 'lần']
-    ];
-}
-
-$pricePerHour = 150000; // Giá mặc định phòng hờ
-if ($court) {
-    if (!empty($court['price_per_hour'])) {
-        $pricePerHour = floatval($court['price_per_hour']);
-    } elseif (!empty($court['price'])) {
-        $pricePerHour = floatval($court['price']);
-    } elseif (!empty($court['gia'])) {
-        $pricePerHour = floatval($court['gia']);
-    }
-} else {
-    $court = [
-        'id' => $courtId,
-        'name' => 'Sân Cầu Lông Số ' . $courtId,
-        'address' => '123 Đường Nguyễn Văn Linh, Quận 7, TP.HCM',
-        'image' => 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=600'
-    ];
-}
-
-// Nhúng Header chung
-require_once __DIR__ . '/includes/header.php';
-?>
+<?php require_once APP_ROOT . '/app/Views/layouts/header.php'; ?>
 
 <style>
     .slot-grid {
@@ -172,7 +104,7 @@ require_once __DIR__ . '/includes/header.php';
 <div class="container my-4" style="max-width: 1050px;">
 
     <div class="mb-3">
-        <a href="courts.php" class="btn btn-sm btn-outline-secondary rounded-3">
+        <a href="home/courts" class="btn btn-sm btn-outline-secondary rounded-3">
             <i class="fa-solid fa-arrow-left me-1"></i> Quay lại danh sách sân
         </a>
     </div>
@@ -209,15 +141,16 @@ require_once __DIR__ . '/includes/header.php';
                         <i class="fa-solid fa-circle-check text-success display-1 mb-3"></i>
                         <h3 class="fw-bold text-success mb-2">ĐẶT SÂN THÀNH CÔNG!</h3>
                         <p class="fs-6 text-dark mb-1">Mã đơn đặt sân: <strong>#<?= $bookingResult['booking_id'] ?></strong></p>
+                        <p class="text-muted small mb-1">Sân số: <strong><?= (int) $bookingResult['court_number'] ?></strong></p>
                         <p class="text-muted small mb-4">Hóa đơn điện tử đã được gửi về email: <br><strong><?= htmlspecialchars($bookingResult['email'] ?? '') ?></strong></p>
-                        <a href="my-bookings.php" class="btn btn-success fw-bold px-4 py-2 rounded-3">Xem Lịch Sử Đặt Sân</a>
+                        <a href="booking/mine" class="btn btn-success fw-bold px-4 py-2 rounded-3">Xem Lịch Sử Đặt Sân</a>
                     </div>
 
                     <div class="modal-body text-center p-5 d-none" id="paymentExpiredBox">
                         <i class="fa-solid fa-triangle-exclamation text-danger display-1 mb-3"></i>
                         <h3 class="fw-bold text-danger mb-2">HẾT THỜI GIAN GIỮ SÂN!</h3>
                         <p class="text-muted small mb-4">Đơn đặt sân đã tự động hủy do quá 3 phút chưa thanh toán.</p>
-                        <a href="booking.php?court_id=<?= $court['id'] ?>" class="btn btn-danger fw-bold px-4 py-2 rounded-3">Chọn Lại Sân</a>
+                        <a href="booking/index?court_id=<?= (int) $court['id'] ?>" class="btn btn-danger fw-bold px-4 py-2 rounded-3">Chọn Lại Sân</a>
                     </div>
 
                 </div>
@@ -248,7 +181,7 @@ require_once __DIR__ . '/includes/header.php';
                 }, 1000);
 
                 const checkInterval = setInterval(() => {
-                    fetch(`booking.php?action=check_payment&booking_id=${bookingId}`)
+                    fetch(`booking/index?action=check_payment&booking_id=${bookingId}`)
                         .then(res => res.json())
                         .then(data => {
                             if (data.status === 'confirmed') {
@@ -320,6 +253,17 @@ require_once __DIR__ . '/includes/header.php';
         <form method="POST" id="bookingForm">
             <input type="hidden" name="court_id" value="<?= $court['id'] ?? 1 ?>">
             <div id="selectedSlotsContainer"></div>
+
+            <div class="mb-4">
+                <label for="court_number" class="form-label fw-bold text-dark">
+                    <i class="fa-solid fa-table-tennis-paddle-ball me-2 text-success"></i>Chọn sân con
+                </label>
+                <select class="form-select form-select-lg rounded-3" id="court_number" name="court_number" required>
+                    <?php for ($courtNumber = 1; $courtNumber <= 5; $courtNumber++): ?>
+                        <option value="<?= $courtNumber ?>">Sân <?= $courtNumber ?></option>
+                    <?php endfor; ?>
+                </select>
+            </div>
 
             <!-- Ngày đặt sân -->
             <div class="mb-4">
@@ -406,6 +350,7 @@ require_once __DIR__ . '/includes/header.php';
     document.addEventListener("DOMContentLoaded", function() {
         const courtId = <?= $court['id'] ?? 1 ?>;
         const dateInput = document.getElementById('booking_date');
+        const courtNumberInput = document.getElementById('court_number');
         const slotContainer = document.getElementById('slotContainer');
         const selectedSlotsContainer = document.getElementById('selectedSlotsContainer');
         const bookingForm = document.getElementById('bookingForm');
@@ -435,7 +380,7 @@ require_once __DIR__ . '/includes/header.php';
 
         function loadSlots() {
             const selectedDate = dateInput.value;
-            fetch(`booking.php?action=check_slots&court_id=${courtId}&date=${selectedDate}`)
+            fetch(`booking/index?action=check_slots&court_id=${courtId}&court_number=${courtNumberInput.value}&date=${selectedDate}`)
                 .then(res => res.json())
                 .then(bookedSlots => renderSlots(bookedSlots))
                 .catch(() => renderSlots([]));
@@ -533,6 +478,7 @@ require_once __DIR__ . '/includes/header.php';
         });
 
         dateInput.addEventListener('change', loadSlots);
+        courtNumberInput.addEventListener('change', loadSlots);
         generate30MinSlots();
         loadSlots();
     });
@@ -540,5 +486,5 @@ require_once __DIR__ . '/includes/header.php';
 
 <?php
 // Nhúng Footer chung
-require_once __DIR__ . '/includes/footer.php';
+require_once APP_ROOT . '/app/Views/layouts/footer.php';
 ?>

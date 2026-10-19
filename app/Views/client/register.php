@@ -1,52 +1,4 @@
-<?php
-// File: register.php (Cập nhật phần xử lý thành công và chuyển hướng)
-
-require_once 'config/database.php';
-require_once 'includes/header.php';
-
-$error = '';
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $name = trim($_POST['name'] ?? '');
-    $email = trim($_POST['email'] ?? '');
-    $phone = trim($_POST['phone'] ?? '');
-    $password = $_POST['password'] ?? '';
-    $confirm_password = $_POST['confirm_password'] ?? '';
-
-    if (empty($name) || empty($email) || empty($phone) || empty($password) || empty($confirm_password)) {
-        $error = 'Vui lòng điền đầy đủ tất cả các trường!';
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $error = 'Địa chỉ email không hợp lệ!';
-    } elseif (strlen($password) < 6) {
-        $error = 'Mật khẩu phải có ít nhất 6 ký tự!';
-    } elseif ($password !== $confirm_password) {
-        $error = 'Mật khẩu nhập lại không khớp!';
-    } else {
-        try {
-            $stmt = $conn->prepare("SELECT id FROM users WHERE email = ?");
-            $stmt->execute([$email]);
-            
-            if ($stmt->rowCount() > 0) {
-                $error = 'Email này đã được đăng ký bởi tài khoản khác!';
-            } else {
-                $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                
-                $insert = $conn->prepare("INSERT INTO users (name, email, phone, password, role) VALUES (?, ?, ?, ?, 'customer')");
-                if ($insert->execute([$name, $email, $phone, $hashed_password])) {
-                    // Lưu thông báo vào session và chuyển hướng sang trang đăng nhập
-                    $_SESSION['register_success'] = 'Đăng ký tài khoản thành công! Vui lòng đăng nhập.';
-                    header('Location: login.php');
-                    exit();
-                } else {
-                    $error = 'Đăng ký thất bại, vui lòng thử lại.';
-                }
-            }
-        } catch (PDOException $e) {
-            $error = 'Lỗi cơ sở dữ liệu: ' . $e->getMessage();
-        }
-    }
-}
-?>
+<?php require_once APP_ROOT . '/app/Views/layouts/header.php'; ?>
 
 <div class="container my-5">
     <div class="row justify-content-center">
@@ -64,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 <?php endif; ?>
 
-                <form action="register.php" method="POST">
+                <form action="auth/register" method="POST">
                     <div class="mb-3">
                         <label for="name" class="form-label fw-semibold">Họ và tên</label>
                         <div class="input-group">
@@ -111,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </form>
 
                 <div class="text-center mt-3">
-                    <p class="text-muted small">Đã có tài khoản? <a href="login.php" class="text-success fw-bold text-decoration-none">Đăng nhập ngay</a></p>
+                    <p class="text-muted small">Đã có tài khoản? <a href="auth/login" class="text-success fw-bold text-decoration-none">Đăng nhập ngay</a></p>
                 </div>
             </div>
         </div>
@@ -119,5 +71,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <?php
-require_once 'includes/footer.php';
+require_once APP_ROOT . '/app/Views/layouts/footer.php';
 ?>

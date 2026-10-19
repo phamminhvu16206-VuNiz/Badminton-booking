@@ -1,21 +1,31 @@
 <?php
 // File: autoload.php
 spl_autoload_register(function ($class) {
-    // Chuyển namespace "App\" thành "app/"
-    $prefix = 'App\\';
-    $base_dir = __DIR__ . '/app/';
+    $prefixes = [
+        'App\\' => __DIR__ . DIRECTORY_SEPARATOR . 'app' . DIRECTORY_SEPARATOR,
+    ];
 
-    $len = strlen($prefix);
-    if (strncmp($prefix, $class, $len) !== 0) {
-        return;
-    }
+    foreach ($prefixes as $prefix => $baseDirectory) {
+        if (strncmp($prefix, $class, strlen($prefix)) !== 0) {
+            continue;
+        }
 
-    $relative_class = substr($class, $len);
-    
-    // Tách đường dẫn thư mục và tên file để chuyển tất cả về chữ viết thường
-    $file = $base_dir . strtolower(str_replace('\\', '/', $relative_class)) . '.php';
+        $relativeClass = substr($class, strlen($prefix));
+        $relativePath = str_replace('\\', DIRECTORY_SEPARATOR, $relativeClass) . '.php';
+        $classParts = explode('\\', $relativeClass);
+        $classFile = array_pop($classParts) . '.php';
+        $lowercaseDirectories = array_map('strtolower', $classParts);
+        $candidates = [
+            $baseDirectory . $relativePath,
+            $baseDirectory . implode(DIRECTORY_SEPARATOR, $lowercaseDirectories) . DIRECTORY_SEPARATOR . $classFile,
+            $baseDirectory . strtolower($relativePath),
+        ];
 
-    if (file_exists($file)) {
-        require_once $file;
+        foreach ($candidates as $file) {
+            if (is_file($file)) {
+                require_once $file;
+                return;
+            }
+        }
     }
 });

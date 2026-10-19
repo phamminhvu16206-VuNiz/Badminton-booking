@@ -1,86 +1,10 @@
-<?php
-// File: admin/courts.php
-session_start();
-require_once '../config/database.php';
-
-$user_role = $_SESSION['user_role'] ?? $_SESSION['role'] ?? '';
-if (!isset($_SESSION['user_id']) || $user_role !== 'admin') {
-    $_SESSION['error'] = 'Bạn không có quyền truy cập!';
-    header('Location: ../login.php');
-    exit();
-}
-
-$success = '';
-$error = '';
-
-// Xử lý XÓA SÂN
-if (isset($_GET['action']) && $_GET['action'] === 'delete') {
-    $court_id = intval($_GET['id'] ?? 0);
-    try {
-        $stmt_del = $conn->prepare("DELETE FROM courts WHERE id = ?");
-        if ($stmt_del->execute([$court_id])) {
-            $success = "Xóa sân thành công!";
-        } else {
-            $error = "Thất bại! Không thể xóa sân.";
-        }
-    } catch (PDOException $e) {
-        $error = "Không thể xóa sân này vì đã có lịch đặt liên quan!";
-    }
-}
-
-// Xử lý CẬP NHẬT thông tin & giá sân
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['btn_update_court'])) {
-    $court_id = intval($_POST['court_id']);
-    $name = trim($_POST['name']);
-    $price = floatval($_POST['price']);
-    $description = trim($_POST['description']);
-
-    if ($price <= 0 || empty($name)) {
-        $error = 'Tên sân và giá thuê phải hợp lệ!';
-    } else {
-        // Kiểm tra tên cột giá trong DB
-        $stmt_check = $conn->query("SHOW COLUMNS FROM courts LIKE 'price_per_hour'");
-        $price_col = ($stmt_check->rowCount() > 0) ? 'price_per_hour' : 'price';
-
-        $stmt_update = $conn->prepare("UPDATE courts SET name = ?, $price_col = ?, description = ? WHERE id = ?");
-        if ($stmt_update->execute([$name, $price, $description, $court_id])) {
-            $success = "Cập nhật thông tin sân thành công!";
-        } else {
-            $error = "Cập nhật thất bại!";
-        }
-    }
-}
-
-// Xử lý THÊM SÂN MỚI
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['btn_add_court'])) {
-    $name = trim($_POST['name']);
-    $price = floatval($_POST['price']);
-    $description = trim($_POST['description']);
-
-    if ($price <= 0 || empty($name)) {
-        $error = 'Vui lòng nhập tên sân và giá hợp lệ!';
-    } else {
-        $stmt_check = $conn->query("SHOW COLUMNS FROM courts LIKE 'price_per_hour'");
-        $price_col = ($stmt_check->rowCount() > 0) ? 'price_per_hour' : 'price';
-
-        $stmt_add = $conn->prepare("INSERT INTO courts (name, $price_col, description) VALUES (?, ?, ?)");
-        if ($stmt_add->execute([$name, $price, $description])) {
-            $success = "Thêm sân mới thành công!";
-        } else {
-            $error = "Thêm sân thất bại!";
-        }
-    }
-}
-
-$courts = $conn->query("SELECT * FROM courts ORDER BY id ASC")->fetchAll();
-?>
-
 <!DOCTYPE html>
 <html lang="vi">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="<?= htmlspecialchars((defined('APP_BASE_URL') ? APP_BASE_URL : '') . '/admin/', ENT_QUOTES, 'UTF-8') ?>">
     <title>Quản Lý Sân & Giá - Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -131,12 +55,13 @@ $courts = $conn->query("SELECT * FROM courts ORDER BY id ASC")->fetchAll();
                 <div class="mb-4 text-muted small">Xin chào, <strong class="text-white"><?= htmlspecialchars($_SESSION['user_name'] ?? 'Admin') ?></strong></div>
 
                 <nav class="nav flex-column">
-                    <a href="index.php"><i class="fa-solid fa-calendar-days me-2"></i>Quản lý đặt sân</a>
-                    <a href="courts.php" class="active"><i class="fa-solid fa-layer-group me-2"></i>Quản lý sân & giá</a>
-                    <a href="services.php"><i class="fa-solid fa-concierge-bell me-2"></i>Quản lý dịch vụ</a>
-                    <a href="users.php"><i class="fa-solid fa-users me-2"></i>Quản lý người dùng</a>
-                    <a href="../index.php" target="_blank"><i class="fa-solid fa-globe me-2"></i>Xem trang web</a>
-                    <a href="../logout.php" class="text-danger mt-5"><i class="fa-solid fa-right-from-bracket me-2"></i>Đăng xuất</a>
+                    <a href="bookings"><i class="fa-solid fa-calendar-days me-2"></i>Quản lý đặt sân</a>
+                    <a href="cancellation-requests"><i class="fa-solid fa-rotate-left me-2"></i>Yêu cầu hủy / hoàn tiền</a>
+                    <a href="courts" class="active"><i class="fa-solid fa-layer-group me-2"></i>Quản lý sân & giá</a>
+                    <a href="services"><i class="fa-solid fa-concierge-bell me-2"></i>Quản lý dịch vụ</a>
+                    <a href="users"><i class="fa-solid fa-users me-2"></i>Quản lý người dùng</a>
+                    <a href="../home/index" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-globe me-2"></i>Xem trang web</a>
+                    <a href="../auth/logout" class="text-danger mt-5"><i class="fa-solid fa-right-from-bracket me-2"></i>Đăng xuất</a>
                 </nav>
             </div>
 
@@ -145,7 +70,7 @@ $courts = $conn->query("SELECT * FROM courts ORDER BY id ASC")->fetchAll();
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <div>
                         <h3 class="fw-bold text-dark">Quản Lý Sân & Giá Thuê</h3>
-                        <p class="text-muted small mb-0">Cập nhật đơn giá theo giờ, thêm và xóa sân</p>
+                        <p class="text-muted small mb-0">Quản lý giá thuê, trạng thái hoạt động, thêm và xóa sân</p>
                     </div>
                     <button class="btn btn-success fw-bold" data-bs-toggle="modal" data-bs-target="#addCourtModal">
                         <i class="fa-solid fa-plus me-1"></i> Thêm Sân Mới
@@ -166,6 +91,7 @@ $courts = $conn->query("SELECT * FROM courts ORDER BY id ASC")->fetchAll();
                                 <tr>
                                     <th>#ID</th>
                                     <th>Tên Sân</th>
+                                    <th>Trạng Thái</th>
                                     <th>Giá Thuê / Giờ</th>
                                     <th>Mô Tả</th>
                                     <th class="text-center">Thao Tác</th>
@@ -176,15 +102,20 @@ $courts = $conn->query("SELECT * FROM courts ORDER BY id ASC")->fetchAll();
                                     <tr>
                                         <td><strong>#<?= $c['id'] ?></strong></td>
                                         <td class="fw-bold text-dark"><?= htmlspecialchars($c['name']) ?></td>
+                                        <td>
+                                            <span class="badge <?= ($c['status'] ?? 'active') === 'active' ? 'bg-success' : 'bg-warning text-dark' ?>">
+                                                <?= ($c['status'] ?? 'active') === 'active' ? 'Đang hoạt động' : 'Đang bảo trì' ?>
+                                            </span>
+                                        </td>
                                         <td class="text-danger fw-bold fs-5"><?= number_format($c['price_per_hour'] ?? $c['price'] ?? 0) ?> VNĐ</td>
                                         <td class="text-muted small"><?= htmlspecialchars($c['description'] ?? 'Chưa có mô tả') ?></td>
                                         <td class="text-center">
                                             <!-- Nút Sửa -->
                                             <button class="btn btn-sm btn-warning fw-bold me-1" data-bs-toggle="modal" data-bs-target="#editModal<?= $c['id'] ?>">
-                                                <i class="fa-solid fa-pen-to-square me-1"></i> Sửa Giá
+                                                <i class="fa-solid fa-pen-to-square me-1"></i> Sửa
                                             </button>
                                             <!-- Nút Xóa -->
-                                            <a href="courts.php?action=delete&id=<?= $c['id'] ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Có chắc chắn muốn xóa sân này không?');">
+                                            <a href="courts?action=delete&id=<?= (int) $c['id'] ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Có chắc chắn muốn xóa sân này không?');">
                                                 <i class="fa-solid fa-trash"></i>
                                             </a>
                                         </td>
@@ -196,7 +127,7 @@ $courts = $conn->query("SELECT * FROM courts ORDER BY id ASC")->fetchAll();
                                             <div class="modal-content rounded-4">
                                                 <form method="POST">
                                                     <div class="modal-header">
-                                                        <h5 class="modal-title fw-bold">Sửa Giá Sân #<?= $c['id'] ?></h5>
+                                                        <h5 class="modal-title fw-bold">Cập nhật sân #<?= $c['id'] ?></h5>
                                                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                                     </div>
                                                     <div class="modal-body">
@@ -212,6 +143,13 @@ $courts = $conn->query("SELECT * FROM courts ORDER BY id ASC")->fetchAll();
                                                         <div class="mb-3">
                                                             <label class="form-label fw-bold">Mô Tả Sân:</label>
                                                             <textarea name="description" class="form-control" rows="3"><?= htmlspecialchars($c['description'] ?? '') ?></textarea>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold" for="courtStatus<?= (int) $c['id'] ?>">Trạng Thái:</label>
+                                                            <select name="status" id="courtStatus<?= (int) $c['id'] ?>" class="form-select" required>
+                                                                <option value="active" <?= ($c['status'] ?? 'active') === 'active' ? 'selected' : '' ?>>Đang hoạt động</option>
+                                                                <option value="maintenance" <?= ($c['status'] ?? '') === 'maintenance' ? 'selected' : '' ?>>Đang bảo trì</option>
+                                                            </select>
                                                         </div>
                                                     </div>
                                                     <div class="modal-footer">
@@ -252,6 +190,13 @@ $courts = $conn->query("SELECT * FROM courts ORDER BY id ASC")->fetchAll();
                         <div class="mb-3">
                             <label class="form-label fw-bold">Mô Tả:</label>
                             <textarea name="description" class="form-control" rows="3" placeholder="Mô tả tiện ích sân..."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold" for="newCourtStatus">Trạng Thái:</label>
+                            <select name="status" id="newCourtStatus" class="form-select" required>
+                                <option value="active" selected>Đang hoạt động</option>
+                                <option value="maintenance">Đang bảo trì</option>
+                            </select>
                         </div>
                     </div>
                     <div class="modal-footer">

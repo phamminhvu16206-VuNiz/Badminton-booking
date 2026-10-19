@@ -1,19 +1,4 @@
-<?php
-// File: index.php
-// Chức năng: Trang chủ hiển thị banner, danh sách sân nổi bật, giới thiệu và ưu điểm hệ thống
-
-require_once 'config/database.php';
-require_once 'includes/header.php';
-
-// Truy vấn lấy danh sách 6 sân đang hoạt động từ cơ sở dữ liệu
-try {
-    $stmt = $conn->prepare("SELECT * FROM courts WHERE status = 'active' LIMIT 6");
-    $stmt->execute();
-    $courts = $stmt->fetchAll();
-} catch (PDOException $e) {
-    $courts = [];
-}
-?>
+<?php require_once APP_ROOT . '/app/Views/layouts/header.php'; ?>
 
 <!-- Banner Website -->
 <div class="container my-4">
@@ -22,7 +7,7 @@ try {
         <div class="position-absolute top-50 start-50 translate-middle text-center text-white w-100 px-3">
             <h1 class="display-5 fw-bold text-uppercase mb-2" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.7);">ĐẶT SÂN CẦU LÔNG ONLINE</h1>
             <p class="fs-5 mb-3" style="text-shadow: 1px 1px 3px rgba(0,0,0,0.7);">Nền tảng đặt sân nhanh chóng - tiện lợi - dễ dàng</p>
-            <a href="courts.php" class="btn btn-success btn-lg fw-bold px-4 py-2 rounded-3 shadow">
+            <a href="home/courts" class="btn btn-success btn-lg fw-bold px-4 py-2 rounded-3 shadow">
                 <i class="fa-solid fa-calendar-check me-2"></i>Đặt sân ngay
             </a>
         </div>
@@ -45,11 +30,14 @@ try {
                 <div class="col-md-4">
                     <div class="card card-custom h-100">
                         <!-- Hiển thị hình ảnh (nếu file ảnh không có sẵn, hiển thị ảnh mặc định từ Unsplash minh họa) -->
-                        <img src="assets/images/<?= htmlspecialchars($court['image']) ?>"
-                            class="card-img-top"
-                            alt="<?= htmlspecialchars($court['name']) ?>"
-                            style="height: 200px; object-fit: cover;"
-                            onerror="this.src='https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=500&auto=format&fit=crop&q=60'">
+                        <div class="position-relative">
+                            <img src="assets/images/<?= htmlspecialchars($court['image']) ?>"
+                                class="card-img-top"
+                                alt="<?= htmlspecialchars($court['name']) ?>"
+                                style="height: 200px; object-fit: cover;"
+                                onerror="this.src='https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?w=500&auto=format&fit=crop&q=60'">
+                            <span class="position-absolute top-0 end-0 m-3 badge bg-success">Đang hoạt động</span>
+                        </div>
                         <div class="card-body d-flex flex-column">
                             <h5 class="card-title fw-bold text-dark"><?= htmlspecialchars($court['name']) ?></h5>
                             <p class="card-text text-muted small mb-2"><i class="fa-solid fa-location-dot text-danger me-1"></i><?= htmlspecialchars($court['address']) ?></p>
@@ -57,10 +45,10 @@ try {
                                 <i class="fa-solid fa-tag me-1"></i><?= number_format($court['price'], 0, ',', '.') ?> VNĐ / giờ
                             </p>
                             <div class="mt-auto d-flex gap-2">
-                                <a href="court-detail.php?id=<?= $court['id'] ?>" class="btn btn-outline-success btn-sm w-50">
+                                <a href="home/detail/<?= (int) $court['id'] ?>" class="btn btn-outline-success btn-sm w-50">
                                     <i class="fa-solid fa-circle-info me-1"></i>Xem chi tiết
                                 </a>
-                                <a href="booking.php?court_id=<?= $court['id'] ?>" class="btn btn-custom-primary btn-sm w-50">
+                                <a href="booking/index?court_id=<?= (int) $court['id'] ?>" class="btn btn-custom-primary btn-sm w-50">
                                     <i class="fa-solid fa-bolt me-1"></i>Đặt sân
                                 </a>
                             </div>
@@ -76,7 +64,7 @@ try {
     </div>
 
     <div class="text-center mb-5">
-        <a href="courts.php" class="btn btn-outline-dark px-4 py-2">
+        <a href="home/courts" class="btn btn-outline-dark px-4 py-2">
             Xem tất cả các sân <i class="fa-solid fa-arrow-right ms-2"></i>
         </a>
     </div>
@@ -161,5 +149,5 @@ try {
 </div>
 
 <?php
-require_once 'includes/footer.php';
+require_once APP_ROOT . '/app/Views/layouts/footer.php';
 ?>

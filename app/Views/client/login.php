@@ -1,51 +1,4 @@
-<?php
-// File: login.php (Bổ sung phần nhận thông báo từ trang đăng ký)
-
-require_once 'config/database.php';
-require_once 'includes/header.php';
-
-$error = '';
-$success = '';
-
-// Kiểm tra xem có thông báo đăng ký thành công chuyển qua không
-if (isset($_SESSION['register_success'])) {
-    $success = $_SESSION['register_success'];
-    unset($_SESSION['register_success']); // Xóa ngay sau khi lấy để không bị lặp lại
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email'] ?? '');
-    $password = $_POST['password'] ?? '';
-
-    if (empty($email) || empty($password)) {
-        $error = 'Vui lòng nhập đầy đủ email và mật khẩu!';
-    } else {
-        try {
-            $stmt = $conn->prepare("SELECT * FROM users WHERE email = ?");
-            $stmt->execute([$email]);
-            $user = $stmt->fetch();
-
-            if ($user && password_verify($password, $user['password'])) {
-                $_SESSION['user_id'] = $user['id'];
-                $_SESSION['user_name'] = $user['name'];
-                $_SESSION['user_email'] = $user['email'];
-                $_SESSION['user_role'] = $user['role'];
-
-                if ($user['role'] === 'admin') {
-                    header('Location: admin/index.php');
-                } else {
-                    header('Location: index.php');
-                }
-                exit();
-            } else {
-                $error = 'Email hoặc mật khẩu không chính xác!';
-            }
-        } catch (PDOException $e) {
-            $error = 'Lỗi hệ thống: ' . $e->getMessage();
-        }
-    }
-}
-?>
+<?php require_once APP_ROOT . '/app/Views/layouts/header.php'; ?>
 
 <div class="container my-5">
     <div class="row justify-content-center">
@@ -70,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 <?php endif; ?>
 
-                <form action="login.php" method="POST">
+                <form action="auth/login" method="POST">
                     <div class="mb-3">
                         <label for="email" class="form-label fw-semibold">Địa chỉ Email</label>
                         <div class="input-group">
@@ -88,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         <!-- THÊM LINK QUÊN MẬT KHẨU TẠI ĐÂY -->
                         <div class="text-end mt-2">
-                            <a href="forgot-password.php?action=reset_email" class="text-decoration-none text-success small fw-semibold">
+                            <a href="auth/forgot-password?action=reset_email" class="text-decoration-none text-success small fw-semibold">
                                 Quên mật khẩu?
                             </a>
                         </div>
@@ -100,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </form>
 
                 <div class="text-center mt-3">
-                    <p class="text-muted small">Chưa có tài khoản? <a href="register.php" class="text-success fw-bold text-decoration-none">Đăng ký ngay</a></p>
+                    <p class="text-muted small">Chưa có tài khoản? <a href="auth/register" class="text-success fw-bold text-decoration-none">Đăng ký ngay</a></p>
                 </div>
             </div>
         </div>
@@ -108,5 +61,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <?php
-require_once 'includes/footer.php';
+require_once APP_ROOT . '/app/Views/layouts/footer.php';
 ?>

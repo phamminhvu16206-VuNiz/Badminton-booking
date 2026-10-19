@@ -10,18 +10,12 @@ class Database {
     private $conn;
 
     private function __construct() {
-        $host = 'localhost';
-        $dbname = 'badminton_booking';
-        $username = 'root';
-        $password = '';
-
         try {
-            $this->conn = new PDO("mysql:host={$host};dbname={$dbname};charset=utf8mb4", $username, $password, [
-                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-            ]);
+            require dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'database.php';
+            $this->conn = $conn;
         } catch (PDOException $e) {
-            die("Lỗi kết nối CSDL: " . $e->getMessage());
+            error_log('Database connection failed: ' . $e->getMessage());
+            throw $e;
         }
     }
 

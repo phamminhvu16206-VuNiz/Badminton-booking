@@ -1,85 +1,4 @@
-<?php
-// File: profile.php - Xem và sửa thông tin cá nhân dạng có nút chuyển đổi
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-
-if (empty($_SESSION['user_id'])) {
-    header('Location: login.php');
-    exit;
-}
-
-require_once __DIR__ . '/autoload.php';
-require_once __DIR__ . '/config/database.php';
-
-$userId = $_SESSION['user_id'];
-$message = '';
-$error = '';
-
-// Lấy thông tin user hiện tại
-$stmt = $conn->prepare("SELECT * FROM users WHERE id = ?");
-$stmt->execute([$userId]);
-$user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-// Xử lý Cập nhật thông tin & Upload ảnh
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['btn_update_profile'])) {
-    $fullName = trim($_POST['full_name'] ?? '');
-    $phone = trim($_POST['phone'] ?? '');
-    $avatar = $user['avatar'] ?? 'default-avatar.png';
-
-    // Upload Ảnh đại diện nếu có chọn file mới
-    if (!empty($_FILES['avatar']['name'])) {
-        $file = $_FILES['avatar'];
-        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        $allowed = ['jpg', 'jpeg', 'png', 'webp'];
-
-        if (in_array($ext, $allowed)) {
-            if ($file['size'] <= 2 * 1024 * 1024) { // Tối đa 2MB
-                $newFileName = 'avatar_' . $userId . '_' . time() . '.' . $ext;
-                $uploadDir = __DIR__ . '/assets/images/avatars/';
-
-                if (!is_dir($uploadDir)) {
-                    mkdir($uploadDir, 0777, true);
-                }
-
-                if (move_uploaded_file($file['tmp_name'], $uploadDir . $newFileName)) {
-                    $avatar = $newFileName;
-                } else {
-                    $error = 'Không thể lưu file ảnh vào thư mục!';
-                }
-            } else {
-                $error = 'File ảnh quá lớn! Vui lòng chọn ảnh dưới 2MB.';
-            }
-        } else {
-            $error = 'Định dạng ảnh không hợp lệ! Chỉ chấp nhận JPG, PNG, WEBP.';
-        }
-    }
-
-    if (empty($error)) {
-        // Hỗ trợ cả cột 'full_name' hoặc 'name'
-        $columnName = array_key_exists('full_name', $user) ? 'full_name' : 'name';
-
-        $updateStmt = $conn->prepare("UPDATE users SET $columnName = ?, phone = ?, avatar = ? WHERE id = ?");
-        if ($updateStmt->execute([$fullName, $phone, $avatar, $userId])) {
-            // CẬP NHẬT SESSION NGAY VÀ LUÔN NÈ CON VỢ
-            $_SESSION['user_name'] = $fullName;
-            $_SESSION['full_name'] = $fullName;
-            $_SESSION['user_avatar'] = $avatar; // Dòng này giúp Header tự đổi ảnh
-
-            $message = 'Cập nhật thông tin cá nhân thành công!';
-            // Reload lại thông tin
-            $stmt->execute([$userId]);
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        } else {
-            $error = 'Lỗi hệ thống! Không thể cập nhật thông tin.';
-        }
-    }
-}
-
-$displayName = $user['full_name'] ?? $user['name'] ?? 'Chưa đặt tên';
-
-require_once __DIR__ . '/includes/header.php';
-?>
+<?php require_once APP_ROOT . '/app/Views/layouts/header.php'; ?>
 
 <div class="container my-5" style="max-width: 800px;">
     <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
@@ -112,9 +31,11 @@ require_once __DIR__ . '/includes/header.php';
                         <div class="position-relative d-inline-block">
                             <?php
                             $avatarFile = $user['avatar'] ?? '';
-                            $avatarPath = !empty($avatarFile) && file_exists(__DIR__ . '/assets/images/avatars/' . $avatarFile)
-                                ? 'assets/images/avatars/' . $avatarFile
-                                : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
+                            $avatarPath = !empty($avatarFile) && file_exists(APP_ROOT . '/public/uploads/avatars/' . basename($avatarFile))
+                                ? (defined('APP_BASE_URL') ? APP_BASE_URL : '') . '/public/uploads/avatars/' . rawurlencode(basename($avatarFile))
+                                : (!empty($avatarFile) && file_exists(APP_ROOT . '/assets/images/avatars/' . basename($avatarFile))
+                                    ? (defined('APP_BASE_URL') ? APP_BASE_URL : '') . '/assets/images/avatars/' . rawurlencode(basename($avatarFile))
+                                    : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png');
                             ?>
                             <img src="<?= $avatarPath ?>" id="avatarPreview" class="rounded-circle img-thumbnail shadow-sm" style="width: 150px; height: 150px; object-fit: cover;">
 
@@ -195,4 +116,4 @@ require_once __DIR__ . '/includes/header.php';
     });
 </script>
 
-<?php require_once __DIR__ . '/includes/footer.php'; ?>
+<?php require_once APP_ROOT . '/app/Views/layouts/footer.php'; ?>

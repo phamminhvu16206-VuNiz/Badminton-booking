@@ -1,79 +1,10 @@
-<?php
-// File: admin/services.php
-session_start();
-require_once '../config/database.php';
-
-$user_role = $_SESSION['user_role'] ?? $_SESSION['role'] ?? '';
-if (!isset($_SESSION['user_id']) || $user_role !== 'admin') {
-    $_SESSION['error'] = 'Bạn không có quyền truy cập!';
-    header('Location: ../login.php');
-    exit();
-}
-
-$success = '';
-$error = '';
-
-// Xử lý XÓA DỊCH VỤ
-if (isset($_GET['action']) && $_GET['action'] === 'delete') {
-    $service_id = intval($_GET['id'] ?? 0);
-    try {
-        $stmt_del = $conn->prepare("DELETE FROM services WHERE id = ?");
-        if ($stmt_del->execute([$service_id])) {
-            $success = "Xóa dịch vụ thành công!";
-        } else {
-            $error = "Xóa dịch vụ thất bại!";
-        }
-    } catch (PDOException $e) {
-        $error = "Không thể xóa dịch vụ này!";
-    }
-}
-
-// Xử lý CẬP NHẬT dịch vụ
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['btn_update_service'])) {
-    $id = intval($_POST['service_id']);
-    $name = trim($_POST['name']);
-    $price = floatval($_POST['price']);
-    $unit = trim($_POST['unit']);
-
-    if (empty($name) || $price < 0) {
-        $error = "Tên dịch vụ và giá không hợp lệ!";
-    } else {
-        $stmt = $conn->prepare("UPDATE services SET name = ?, price = ?, unit = ? WHERE id = ?");
-        if ($stmt->execute([$name, $price, $unit, $id])) {
-            $success = "Cập nhật dịch vụ thành công!";
-        } else {
-            $error = "Có lỗi xảy ra!";
-        }
-    }
-}
-
-// Xử lý THÊM DỊCH VỤ MỚI
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['btn_add_service'])) {
-    $name = trim($_POST['name']);
-    $price = floatval($_POST['price']);
-    $unit = trim($_POST['unit']);
-
-    if (empty($name) || $price < 0) {
-        $error = "Vui lòng nhập thông tin hợp lệ!";
-    } else {
-        $stmt = $conn->prepare("INSERT INTO services (name, price, unit) VALUES (?, ?, ?)");
-        if ($stmt->execute([$name, $price, $unit])) {
-            $success = "Thêm dịch vụ mới thành công!";
-        } else {
-            $error = "Thêm thất bại!";
-        }
-    }
-}
-
-$services = $conn->query("SELECT * FROM services ORDER BY id ASC")->fetchAll();
-?>
-
 <!DOCTYPE html>
 <html lang="vi">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="<?= htmlspecialchars((defined('APP_BASE_URL') ? APP_BASE_URL : '') . '/admin/', ENT_QUOTES, 'UTF-8') ?>">
     <title>Quản Lý Dịch Vụ - Admin</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -124,12 +55,13 @@ $services = $conn->query("SELECT * FROM services ORDER BY id ASC")->fetchAll();
                 <div class="mb-4 text-muted small">Xin chào, <strong class="text-white"><?= htmlspecialchars($_SESSION['user_name'] ?? 'Admin') ?></strong></div>
 
                 <nav class="nav flex-column">
-                    <a href="index.php"><i class="fa-solid fa-calendar-days me-2"></i>Quản lý đặt sân</a>
-                    <a href="courts.php"><i class="fa-solid fa-layer-group me-2"></i>Quản lý sân & giá</a>
-                    <a href="services.php" class="active"><i class="fa-solid fa-concierge-bell me-2"></i>Quản lý dịch vụ</a>
-                    <a href="users.php"><i class="fa-solid fa-users me-2"></i>Quản lý người dùng</a>
-                    <a href="../index.php" target="_blank"><i class="fa-solid fa-globe me-2"></i>Xem trang web</a>
-                    <a href="../logout.php" class="text-danger mt-5"><i class="fa-solid fa-right-from-bracket me-2"></i>Đăng xuất</a>
+                    <a href="bookings"><i class="fa-solid fa-calendar-days me-2"></i>Quản lý đặt sân</a>
+                    <a href="cancellation-requests"><i class="fa-solid fa-rotate-left me-2"></i>Yêu cầu hủy / hoàn tiền</a>
+                    <a href="courts"><i class="fa-solid fa-layer-group me-2"></i>Quản lý sân & giá</a>
+                    <a href="services" class="active"><i class="fa-solid fa-concierge-bell me-2"></i>Quản lý dịch vụ</a>
+                    <a href="users"><i class="fa-solid fa-users me-2"></i>Quản lý người dùng</a>
+                    <a href="../home/index" target="_blank" rel="noopener noreferrer"><i class="fa-solid fa-globe me-2"></i>Xem trang web</a>
+                    <a href="../auth/logout" class="text-danger mt-5"><i class="fa-solid fa-right-from-bracket me-2"></i>Đăng xuất</a>
                 </nav>
             </div>
 
@@ -177,7 +109,7 @@ $services = $conn->query("SELECT * FROM services ORDER BY id ASC")->fetchAll();
                                                 <i class="fa-solid fa-pen-to-square me-1"></i> Sửa Giá
                                             </button>
                                             <!-- Nút Xóa -->
-                                            <a href="services.php?action=delete&id=<?= $s['id'] ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Có chắc chắn muốn xóa dịch vụ này không?');">
+                                            <a href="services?action=delete&id=<?= (int) $s['id'] ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('Có chắc chắn muốn xóa dịch vụ này không?');">
                                                 <i class="fa-solid fa-trash"></i>
                                             </a>
                                         </td>
